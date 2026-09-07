@@ -126,6 +126,7 @@ jobs:
       # nuwaclaw → 本仓 base 分支（自引用私仓，用 github.token 注入凭据）；
       # nuwax → base 内嵌前端（远端公开可匿名拉取，dist 随仓提交，无需构建）
       - name: Init submodules (nuwaclaw + nuwax)
+        shell: bash
         env:
           GH_SUBMODULE_TOKEN: ${{ github.token }}
         run: |
