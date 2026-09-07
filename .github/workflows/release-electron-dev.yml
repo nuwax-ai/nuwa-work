@@ -43,7 +43,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Get version from tag
         id: version
@@ -110,7 +110,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # extraResources 需要内嵌 nuwax 子模块的 dist（随仓提交，无需构建）；
       # 树中另有无 .gitmodules 条目的 vcpkg 孤儿 gitlink，recursive 初始化会 fatal，
