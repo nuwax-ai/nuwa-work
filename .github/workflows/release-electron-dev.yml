@@ -361,7 +361,7 @@ jobs:
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
       # 发布通道参数（nuwa-work 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
       RELEASE_ROOT: "nuwa-work-electron"
-      PRODUCT_PREFIX: "女娲 Nuwax"
+      PRODUCT_PREFIX: "Nuwax"
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - name: Ensure awscli v2 (for S3)
