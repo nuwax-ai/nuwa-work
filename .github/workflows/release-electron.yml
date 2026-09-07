@@ -129,13 +129,18 @@ jobs:
         env:
           GH_SUBMODULE_TOKEN: ${{ github.token }}
         run: |
-          git config --global url."https://x-access-token:${GH_SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          # 直接写 submodule.<name>.url（含 token），不依赖 insteadOf——Windows Git
+          # 的全局 insteadOf 在 submodule clone 上不生效（第三次 CI 实测认证失败）
+          git config submodule.nuwaclaw.url "https://x-access-token:${GH_SUBMODULE_TOKEN}@github.com/nuwax-ai/nuwa-work.git"
           git submodule update --init nuwaclaw
           # nuwax 嵌套子模块的 .gitmodules 指向私有 GitLab（CI 无凭据）——改走公开
           # GitHub 镜像（nuwax-ai/nuwax，pin 提交在 pin/nuwa-work 分支可匿名拉取）
           git -C nuwaclaw config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
           git -C nuwaclaw submodule update --init nuwax
           git submodule status
+          # 强校验：submodule update 内部重试失败时可能以 0 退出（第三次 CI 实测假绿）
+          test -d nuwaclaw/crates/agent-electron-client || { echo "::error::nuwaclaw submodule not checked out"; exit 1; }
+          test -d nuwaclaw/nuwax/dist || { echo "::error::nuwax dist missing"; exit 1; }
 
       - name: Set version & commercial branding in package.json
         shell: bash
