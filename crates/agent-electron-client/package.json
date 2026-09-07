@@ -436,8 +436,7 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb",
-        "rpm"
+        "deb"
       ],
       "icon": "public/icon.png",
       "category": "Productivity",
