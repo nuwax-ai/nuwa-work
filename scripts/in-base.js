@@ -18,21 +18,30 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const baseDir = path.join(__dirname, '..', 'nuwaclaw');
-const [, , dash, ...cmd] = process.argv;
-if (dash !== '--' || cmd.length === 0) {
-  console.error('用法: node scripts/in-base.js -- <command> [args...]');
+
+// 解析参数：[--no-inject] -- <command> [args...]
+// --no-inject：不注入商业 env（测试基线须用社区默认值跑，商业行为由专项
+// env 测试覆盖，如 migrate.commercial.test.ts / constants.port-offset.test.ts）
+const argv = process.argv.slice(2);
+const noInject = argv[0] === '--no-inject';
+if (noInject) argv.shift();
+if (argv[0] !== '--' || argv.length < 2) {
+  console.error('用法: node scripts/in-base.js [--no-inject] -- <command> [args...]');
   process.exit(1);
 }
+const cmd = argv.slice(1);
 
-const env = {
-  ...process.env,
-  NUWAX_APP_IDENTIFIER: process.env.NUWAX_APP_IDENTIFIER || 'nuwawork',
-  NUWAX_APP_DISPLAY_NAME: process.env.NUWAX_APP_DISPLAY_NAME || '女娲 Nuwax',
-  NUWAX_UPDATE_FEED_BASE:
-    process.env.NUWAX_UPDATE_FEED_BASE ||
-    'https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwa-work-electron',
-  NUWAX_PORT_OFFSET: process.env.NUWAX_PORT_OFFSET || '1000',
-};
+const env = noInject
+  ? { ...process.env }
+  : {
+      ...process.env,
+      NUWAX_APP_IDENTIFIER: process.env.NUWAX_APP_IDENTIFIER || 'nuwawork',
+      NUWAX_APP_DISPLAY_NAME: process.env.NUWAX_APP_DISPLAY_NAME || '女娲 Nuwax',
+      NUWAX_UPDATE_FEED_BASE:
+        process.env.NUWAX_UPDATE_FEED_BASE ||
+        'https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwa-work-electron',
+      NUWAX_PORT_OFFSET: process.env.NUWAX_PORT_OFFSET || '1000',
+    };
 
 const result = spawnSync(cmd[0], cmd.slice(1), {
   stdio: 'inherit',

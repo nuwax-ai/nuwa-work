@@ -6,9 +6,9 @@
   "packageManager": "pnpm@9.15.5",
   "scripts": {
     "in-base": "node scripts/in-base.js",
-    "base:install": "node scripts/in-base.js pnpm install --filter @nuwax-ai/nuwaclaw...",
-    "base:dev": "node scripts/in-base.js make electron-dev",
-    "base:test": "node scripts/in-base.js npm run test:electron",
-    "base:bundle": "node scripts/in-base.js make electron-bundle-unsigned"
+    "base:install": "node scripts/in-base.js -- pnpm install --filter @nuwax-ai/nuwaclaw...",
+    "base:dev": "node scripts/in-base.js -- make electron-dev",
+    "base:test": "node scripts/in-base.js --no-inject -- npm run test:electron",
+    "base:bundle": "node scripts/in-base.js -- make electron-bundle-unsigned"
   }
 }

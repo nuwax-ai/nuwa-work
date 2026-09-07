@@ -12,7 +12,7 @@ nuwa-work/（main = 壳，私有仓）
 ├── release-notes/  docs/  overlay/
 └── package.json
 
-本仓 base 分支 = 商业开发线：nucaclaw 社区 main(811009627) 历史 + 108 个 1.0 提交
+本仓 base 分支 = 商业开发线：nuwaclaw 社区 main(811009627) 历史 + 108 个 1.0 提交
 （v2 会话渲染器/本地目录/侧栏折叠/nuwax 集成等）+ 基座改造。1.0 全量历史另存
 archive/electron-client-1.0 分支。社区开源版在公开仓
 [nuwax-ai/nuwaclaw](https://github.com/nuwax-ai/nuwaclaw) 的 main 独立演进。
@@ -41,7 +41,11 @@ git submodule update --init nuwaclaw          # 自引用私仓（需权限）�
 git -C nuwaclaw submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
 npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit）
 npm run base:dev       # 基座 make electron-dev（已注入商业 env）
-npm run base:test      # 全量 vitest（基线 exit=0 / 1281 用例）
+npm run base:test      # 全量 vitest（--no-inject：测试基线=社区默认值，基线 exit=0 / 1282 用例）
+
+# 测试/运行前还需准备型资源（gitignore，fresh clone 必做）：
+cd nuwaclaw/crates/agent-electron-client && npm run prepare:mcp-proxy
+# 完整资源（node/git/uv/nuwaxcode/ripgrep 等）用基座根 Makefile：make electron-prepare
 ```
 
 Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由基座
