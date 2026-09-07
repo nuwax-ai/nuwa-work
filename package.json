@@ -1,0 +1,14 @@
+{
+  "name": "nuwa-work",
+  "version": "1.0.0",
+  "private": true,
+  "description": "女娲 Nuwax 商业版 Electron 客户端 —— nuwaclaw 基座薄壳（业务与构建系统在 nuwaclaw/ submodule 的 base 分支内）",
+  "packageManager": "pnpm@9.15.5",
+  "scripts": {
+    "in-base": "node scripts/in-base.js",
+    "base:install": "node scripts/in-base.js pnpm install --filter @nuwax-ai/nuwaclaw...",
+    "base:dev": "node scripts/in-base.js make electron-dev",
+    "base:test": "node scripts/in-base.js npm run test:electron",
+    "base:bundle": "node scripts/in-base.js make electron-bundle-unsigned"
+  }
+}
