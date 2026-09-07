@@ -16,7 +16,7 @@ import * as path from "path";
 import { app } from "electron";
 import log from "electron-log";
 import Database from "better-sqlite3";
-import { APP_NAME_IDENTIFIER } from "@shared/constants";
+import { APP_NAME_IDENTIFIER, NUWAX_PORT_OFFSET } from "@shared/constants";
 import { readSetting, writeSetting } from "../db";
 
 interface LegacySource {
@@ -41,6 +41,52 @@ const LEGACY_SOURCES: LegacySource[] = [
   { dirName: ".nuwax-agent", dbName: "nuwax-agent.db", configName: null },
   { dirName: ".nuwaxbot", dbName: "nuwaxbot.db", configName: "nuwaxbot.json" },
 ];
+
+// 社区版默认端口（历史固定值）：商业版迁移 quickInit 配置时，恰好等于这些
+// 默认值的端口改写为「默认 + NUWAX_PORT_OFFSET」，避免与同机社区版/nuwa-cli 撞端口；
+// 用户自定义端口不动。
+const LEGACY_DEFAULT_QUICKINIT_PORTS: Record<string, number> = {
+  agentPort: 60006,
+  fileServerPort: 60005,
+  ttydPort: 60009,
+};
+
+/**
+ * 商业版迁移配套：改写 quickInit 配置里的旧默认端口（兼容顶层与 quickInit scope 两种形态）。
+ * 仅在端口偏移生效（商业构建）时执行；任何失败只告警不阻断迁移。
+ */
+function migrateLegacyQuickInitPorts(configPath: string): void {
+  if (NUWAX_PORT_OFFSET === 0 || APP_NAME_IDENTIFIER === "nuwaclaw") return;
+  try {
+    if (!fs.existsSync(configPath)) return;
+    const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const scopes = [raw, raw?.quickInit].filter(
+      (s): s is Record<string, unknown> => !!s && typeof s === "object",
+    );
+    let changed = false;
+    for (const scope of scopes) {
+      for (const [key, legacyPort] of Object.entries(
+        LEGACY_DEFAULT_QUICKINIT_PORTS,
+      )) {
+        if (scope[key] === legacyPort) {
+          scope[key] = legacyPort + NUWAX_PORT_OFFSET;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      fs.writeFileSync(configPath, JSON.stringify(raw, null, 2), "utf-8");
+      log.info(
+        `[Migrate] Shifted legacy default quickInit ports (+${NUWAX_PORT_OFFSET}): ${path.basename(configPath)}`,
+      );
+    }
+  } catch (e) {
+    log.warn("[Migrate] Failed to shift legacy quickInit ports:", e);
+  }
+}
 
 /**
  * 检查 DB 文件是否包含有效的 settings 数据
@@ -144,6 +190,7 @@ export function migrateDataDir(): void {
           log.info(
             `[Migrate] Renamed config: ${source.configName} → ${newConfigName}`,
           );
+          migrateLegacyQuickInitPorts(newConfig);
         } catch (e) {
           log.error("[Migrate] Failed to rename config file:", e);
         }
