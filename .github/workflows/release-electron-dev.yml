@@ -28,7 +28,7 @@
 #   - Windows：本 workflow 仅构建产物，不在 CI 内签名；签名在本地 Windows（SimplySign）手动完成
 #   - OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET：上传到阿里云 OSS
 #
-# 产物目录：crates/agent-electron-client/release/${version}/（由 package.json directories.output 决定）
+# 产物目录：nuwaclaw/crates/agent-electron-client/release/${version}/（由 package.json directories.output 决定）
 
 name: Release Electron App (Prerelease, nuwa-work)
 
@@ -329,7 +329,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           VERSION="${{ needs.prepare.outputs.version }}"
-          OUT_DIR="crates/agent-electron-client/release/${VERSION}"
+          OUT_DIR="nuwaclaw/crates/agent-electron-client/release/${VERSION}"
           if [ ! -d "$OUT_DIR" ]; then
             echo "::error::Output directory not found: $OUT_DIR"
             exit 1
