@@ -124,6 +124,9 @@ jobs:
         env:
           GH_SUBMODULE_TOKEN: ${{ github.token }}
         run: |
+          # Windows Git 的 Credential Manager 会劫持/覆盖 URL 内嵌凭据（实测
+          # Invalid username or token）——清空 credential helper 强制用 URL 凭据
+          git config --global credential.helper ""
           # 直接写 submodule.<name>.url（含 token），不依赖 insteadOf——Windows Git
           # 的全局 insteadOf 在 submodule clone 上不生效（第三次 CI 实测认证失败）
           git config submodule.nuwaclaw.url "https://x-access-token:${GH_SUBMODULE_TOKEN}@github.com/nuwax-ai/nuwa-work.git"
