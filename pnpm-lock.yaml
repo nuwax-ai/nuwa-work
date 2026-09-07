@@ -61,9 +61,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.27.1(zod@3.25.76)
-      '@nuwax-ai/agent-kit':
-        specifier: link:../agent-kit
-        version: link:../agent-kit
       '@nuwax-ai/mcp-proxy-ts':
         specifier: 1.5.4
         version: 1.5.4(zod@3.25.76)
@@ -140,6 +137,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.2
         version: 9.39.4
+      '@nuwax-ai/agent-kit':
+        specifier: link:../agent-kit
+        version: link:../agent-kit
       '@types/adm-zip':
         specifier: ^0.5.7
         version: 0.5.8
