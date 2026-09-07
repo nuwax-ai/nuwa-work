@@ -1,0 +1,14 @@
+{
+  "name": "nuwa-work",
+  "srcPaths": [
+    "overlay/"
+  ],
+  "plansDirs": [
+    "plans",
+    "specs"
+  ],
+  "protectedWrite": [],
+  "envPrefix": "NUWACLAW",
+  "test": "npm run base:test",
+  "grillExtra": []
+}
