@@ -48,4 +48,11 @@ describe("NUWAX_PORT_OFFSET 注入", () => {
     expect(c.NUWAX_PORT_OFFSET).toBe(0);
     expect(c.DEFAULT_AGENT_RUNNER_PORT).toBe(60006);
   });
+
+  it("负值注入按 0 处理（不允许向下偏移）", async () => {
+    process.env.NUWAX_PORT_OFFSET = "-1000";
+    const c = await import("./constants");
+    expect(c.NUWAX_PORT_OFFSET).toBe(0);
+    expect(c.DEFAULT_AGENT_RUNNER_PORT).toBe(60006);
+  });
 });

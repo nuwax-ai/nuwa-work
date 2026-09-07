@@ -69,9 +69,9 @@ export const WEBVIEW_POPUP_MIN_HEIGHT = DEFAULT_WINDOW_MIN_HEIGHT;
 
 const NUWAX_PORT_OFFSET_ENV =
   typeof process !== "undefined" ? process.env.NUWAX_PORT_OFFSET : undefined;
-/** 端口偏移量（0 = 社区版默认序列） */
+/** 端口偏移量（0 = 社区版默认序列；负值与非数字按 0 处理） */
 export const NUWAX_PORT_OFFSET =
-  Number.parseInt(NUWAX_PORT_OFFSET_ENV?.trim() ?? "0", 10) || 0;
+  Math.max(0, Number.parseInt(NUWAX_PORT_OFFSET_ENV?.trim() ?? "0", 10) || 0);
 
 /** MCP Proxy 默认端口 */
 export const DEFAULT_MCP_PROXY_PORT = 18099 + NUWAX_PORT_OFFSET;
