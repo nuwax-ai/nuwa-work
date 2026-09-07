@@ -119,15 +119,18 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      # submodules: true = 非递归：以 github.token 拉自引用 submodule（nuwaclaw→本仓 base）
-      - name: Checkout (with nuwaclaw submodule)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
-      # nuwax 前端子模块（base 内嵌）第二层手动 init（远端公开，可匿名拉取；dist 随仓提交）
-      - name: Init nuwax submodule (inside base)
+      # 显式两层 submodule init（不依赖 checkout action 内部递归 sync）：
+      # nuwaclaw → 本仓 base 分支（自引用私仓，用 github.token 注入凭据）；
+      # nuwax → base 内嵌前端（远端公开可匿名拉取，dist 随仓提交，无需构建）
+      - name: Init submodules (nuwaclaw + nuwax)
+        env:
+          GH_SUBMODULE_TOKEN: ${{ github.token }}
         run: |
+          git config --global url."https://x-access-token:${GH_SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git submodule update --init nuwaclaw
           git -C nuwaclaw submodule update --init nuwax
           git submodule status
 
