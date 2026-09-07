@@ -126,6 +126,9 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${GH_SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
           git submodule update --init nuwaclaw
+          # nuwax 嵌套子模块的 .gitmodules 指向私有 GitLab（CI 无凭据）——改走公开
+          # GitHub 镜像（nuwax-ai/nuwax，pin 提交在 pin/nuwa-work 分支可匿名拉取）
+          git -C nuwaclaw config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
           git -C nuwaclaw submodule update --init nuwax
           git submodule status
 
