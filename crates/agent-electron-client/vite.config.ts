@@ -95,7 +95,9 @@ export default defineConfig(({ mode }) => {
     },
   },
   server: {
-    port: 60173,
+    // 跟随端口偏移注入（与 constants DEFAULT_DEV_SERVER_PORT 同式）：商业版 dev 注
+    // NUWAX_PORT_OFFSET=1000 → 61173，与社区版 dev（60173）同机双开不撞（strictPort 下撞则直接失败）
+    port: 60173 + (Number.parseInt(process.env.NUWAX_PORT_OFFSET?.trim() ?? '0', 10) || 0),
     strictPort: true,
     fs: {
       // 允许访问项目根目录下的node_modules
