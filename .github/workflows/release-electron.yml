@@ -152,12 +152,13 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           npm pkg set version="$VERSION"
-          # 商业身份：appId 独立于社区版（并装互不干扰）；删除 extendInfo 旧覆盖使
-          # macOS bundle id 与 appId 统一
+          # 商业身份：文件名/包名一律 ASCII（productName=nuwa-work → nuwa-work.app /
+          # nuwa-work-Setup-*.exe 等）；展示文案（女娲 Nuwax）走 CFBundleDisplayName
+          # 与运行时 APP_DISPLAY_NAME，不进文件系统
           npm pkg set build.appId="com.nuwax-ai.nuwa-work"
-          npm pkg set build.productName="女娲 Nuwax"
+          npm pkg set build.productName="nuwa-work"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
-          echo "package.json version: $(npm pkg get version), appId: $(npm pkg get build.appId)"
+          echo "package.json version: $(npm pkg get version), appId: $(npm pkg get build.appId), productName: $(npm pkg get build.productName)"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -360,7 +361,7 @@ jobs:
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
       # 商业版发布通道（与客户端 NUWAX_UPDATE_FEED_BASE 对应，勿与社区版 nuwaclaw-electron 混用）
       RELEASE_ROOT: "nuwa-work-electron"
-      PRODUCT_PREFIX: "Nuwax"
+      PRODUCT_PREFIX: "nuwa-work"
       RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_CHANNEL: ${{ inputs.channel || 'stable' }}
     steps:
