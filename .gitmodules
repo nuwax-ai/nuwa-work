@@ -1,4 +1,4 @@
 [submodule "nuwaclaw"]
 	path = nuwaclaw
-	url = https://github.com/nuwax-ai/nuwaclaw-work.git
+	url = https://github.com/nuwax-ai/nuwaclaw.git
 	branch = base

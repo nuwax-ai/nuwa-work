@@ -1,10 +1,9 @@
 # submodule 连通性探针（手动触发）
 #
-# 验证两层 submodule 在 CI 环境可拉取：nuwaclaw（跨仓私仓 nuwax-ai/nuwaclaw-work，
-# 走 GH_PAT）+ nuwax（公开仓）。与 release workflow 的 Init submodules 步骤同构，
-# 在不动发布 tag 的情况下即可回归验证以下变更：
+# 验证两层 submodule 在 CI 环境可拉取：nuwaclaw（公开仓 nuwax-ai/nuclaw 的
+# base 分支，走 github.token）+ nuwax（公开仓）。与 release workflow 的
+# Init submodules 步骤同构，在不动发布 tag 的情况下即可回归验证以下变更：
 #   - .gitmodules URL 变更 / pin bump
-#   - GH_PAT 权限（能否读 nuwaclaw-work）
 #   - nuwax pin 提交在 pin/nuwa-work 分支的可达性
 name: CI Smoke (submodules)
 
@@ -22,7 +21,7 @@ jobs:
       - name: Init submodules (nuwaclaw + nuwax)
         shell: bash
         env:
-          GH_SUBMODULE_TOKEN: ${{ secrets.GH_PAT }}
+          GH_SUBMODULE_TOKEN: ${{ github.token }}
         run: |
           export GH_TOKEN="${GH_SUBMODULE_TOKEN}"
           gh auth setup-git
