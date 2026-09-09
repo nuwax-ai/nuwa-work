@@ -29,7 +29,9 @@ jobs:
           git submodule update --init nuwaclaw
           git -C nuwaclaw config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
           git -C nuwaclaw submodule update --init nuwax
-          git submodule status --recursive
+          git submodule status
+          git -C nuwaclaw submodule status
+          # 勿加 --recursive：base 树有 vcpkg 孤儿 gitlink（无 .gitmodules 条目）会 fatal
 
       - name: Assert
         run: |
