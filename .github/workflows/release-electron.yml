@@ -123,11 +123,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 显式两层 submodule init（不依赖 checkout action 内部递归 sync）：
+      # 显式 submodule init（不依赖 checkout action 内部递归 sync）：
       # nuwa-electron-shell submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
-      #   github.token 注入凭据）；nuwax → 前端子模块（公开可匿名拉取）。
-      #   壳根 nuwax/（商业前端 pin，pin/nuwa-work 分支）为 dist 事实来源；
-      #   基座内嵌 nuwax 为过渡期兼容（基座瘦身后移除）
+      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwa-work
+      #   分支承载；基座已不含内嵌 nuwax——前端 dist 打包来源=壳根 nuwax/dist）
       - name: Init submodules (nuwa-electron-shell + nuwax)
         shell: bash
         env:
@@ -139,14 +138,9 @@ jobs:
           gh auth setup-git
           git submodule update --init nuwa-electron-shell
           git submodule update --init nuwax
-          # 基座内嵌 nuwax（过渡期）：显式覆盖保持双保险（远端公开可匿名拉取，
-          # bump 内层 pin 时须同步快进 pin/nuwa-work 分支，否则 CI 匿名拉取断裂）
-          git -C nuwa-electron-shell config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
-          git -C nuwa-electron-shell submodule update --init nuwax
           git submodule status
           # 强校验：submodule update 内部重试失败时可能以 0 退出（第三次 CI 实测假绿）
           test -d nuwa-electron-shell/crates/agent-electron-client || { echo "::error::nuwa-electron-shell submodule not checked out"; exit 1; }
-          test -d nuwa-electron-shell/nuwax/dist || { echo "::error::nuwax dist missing (nested)"; exit 1; }
           test -d nuwax/dist || { echo "::error::nuwax dist missing (shell root)"; exit 1; }
 
       # 商业自有代码整文件覆写进基座工作树（overlay/ 机制见 scripts/sync-overlay.js）
@@ -168,7 +162,10 @@ jobs:
           npm pkg set build.appId="com.nuwax-ai.nuwa-work"
           npm pkg set build.productName="NuwaWork"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
-          echo "package.json version: $(npm pkg get version), appId: $(npm pkg get build.appId), productName: $(npm pkg get build.productName)"
+          # 前端 dist 打包来源（基座已中立化移除该条目）：壳根 nuwax/dist →
+          # resources/nuwax-dist（dev 形态运行时经 NUWAX_FRONTEND_DIST env 解析）
+          node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.build.extraResources=(j.build.extraResources||[]).filter(e=>!(e.from&&e.from.includes('nuwax/dist'))).concat([{from:'../../../nuwax/dist',to:'nuwax-dist'}]);fs.writeFileSync(p,JSON.stringify(j,null,2));"
+          echo "package.json version: $(npm pkg get version), appId: $(npm pkg get build.appId), productName: $(npm pkg get build.productName), extraResources(nuwax-dist): $(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).build.extraResources.filter(e=>e.to==='nuwax-dist').map(e=>e.from).join(','))")"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

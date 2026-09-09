@@ -28,15 +28,10 @@ jobs:
           gh auth setup-git
           git submodule update --init nuwa-electron-shell
           git submodule update --init nuwax
-          git -C nuwa-electron-shell config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
-          git -C nuwa-electron-shell submodule update --init nuwax
           git submodule status
-          # 勿在 nuwa-electron-shell 内再跑 submodule status / --recursive：base 树有 vcpkg
-          # 孤儿 gitlink（无 .gitmodules 条目）会 fatal 128
 
       - name: Assert
         run: |
           test -d nuwa-electron-shell/crates/agent-electron-client || { echo "::error::nuwa-electron-shell submodule not checked out"; exit 1; }
-          test -d nuwa-electron-shell/nuwax/dist || { echo "::error::nuwax dist missing (nested)"; exit 1; }
           test -d nuwax/dist || { echo "::error::nuwax dist missing (shell root)"; exit 1; }
-          echo "submodule topology OK (shell-base@$(git -C nuwa-electron-shell rev-parse --short HEAD), root-nuwax@$(git -C nuwax rev-parse --short HEAD), nested-nuwax@$(git -C nuwa-electron-shell/nuwax rev-parse --short HEAD))"
+          echo "submodule topology OK (shell-base@$(git -C nuwa-electron-shell rev-parse --short HEAD), root-nuwax@$(git -C nuwax rev-parse --short HEAD))"

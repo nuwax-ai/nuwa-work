@@ -25,8 +25,9 @@ const rootDir = path.join(__dirname, '..');
 const baseDir = path.join(rootDir, 'nuwa-electron-shell');
 
 // 解析参数：[--no-inject] -- <command> [args...]
-// --no-inject：不注入商业 env、不同步 overlay（测试基线须用社区默认值跑干净基座，
-// 商业行为由专项 env 测试覆盖，如 migrate.commercial.test.ts / constants.port-offset.test.ts）
+// --no-inject：不注入商业 env；并先还原已同步的 overlay 文件（社区基线须用
+// 干净基座源码 + 社区默认值跑，商业行为由专项 env 测试覆盖，如
+// migrate.commercial.test.ts / constants.port-offset.test.ts）
 const argv = process.argv.slice(2);
 const noInject = argv[0] === '--no-inject';
 if (noInject) argv.shift();
@@ -44,6 +45,17 @@ if (!noInject) {
   if (sync.status !== 0) {
     console.error('[in-base] overlay 同步失败，中止');
     process.exit(sync.status ?? 1);
+  }
+} else {
+  // 社区基线须跑在干净基座源码上：还原上一轮同步进工作树的 overlay 文件
+  // （仅清单内文件；不影响基座工作树里的其他本地改动）
+  const clean = spawnSync('node', [path.join(__dirname, 'sync-overlay.js'), '--clean'], {
+    stdio: 'inherit',
+    cwd: rootDir,
+  });
+  if (clean.status !== 0) {
+    console.error('[in-base] overlay 还原失败，中止');
+    process.exit(clean.status ?? 1);
   }
 }
 
