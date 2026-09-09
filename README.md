@@ -6,20 +6,25 @@
 ```
 nuwa-work/（main = 商业产品壳）
 ├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
-│               #   （全部功能模块：agent-electron-client + agent-kit + gui-server + nuwax 前端）
-├── scripts/in-base.js   # 在基座内执行命令并注入商业 env（dev/test/bundle 快捷入口）
-├── .github/workflows/   # 发布编排（release / sync，构建在基座内执行）
-├── release-notes/  docs/  overlay/
+│               #   （产品中立功能模块：agent-electron-client + agent-kit + gui-server）
+├── nuwax/                 # submodule → nuwax 前端（feat-dong.0930，dist 随仓提交；
+│               #   商业前端 pin，pin/nuwa-work 分支承载——基座瘦身后 dist 唯一来源）
+├── overlay/               # 商业自有代码（整文件覆写进基座工作树，见下「overlay/」）
+├── scripts/               # in-base.js（基座内执行+商业 env 注入）+ sync-overlay.js
+├── .github/workflows/     # 发布编排（release / sync，构建在基座内执行）
+├── release-notes/  docs/
 └── package.json
 
-商业开发线 = 基座仓 nuwa-electron-shell 的 main 分支（原 nuwaclaw 社区 main
-全历史 + 1.0 功能复刻线，2026-09-09 合并统一）；产品差异的全部边界 = 4 个
-构建期注入 env（语义见基座 README「注入契约」）。
+商业开发线 = 基座仓 nuwa-electron-shell 的 main 分支（产品中立，服务 nuwa-cli /
+nuwaclaw / nuwa-work 三方）；本仓差异 = 4 个构建期注入 env（语义见基座 README
+「注入契约」）+ overlay/ 商业自有代码 + 商业前端 pin。
 
 > 2026-09-09 三层架构定型：基座仓（nuwa-electron-shell，公开）承载功能模块；
-> 社区产品壳 [nuwax-ai/nucaclaw](https://github.com/nuwax-ai/nucaclaw)（默认身份）
-> 与商业产品壳本仓（注入身份）各自经 submodule pin 引用基座、独立发布。
-> 此前的自引用 / base 分支双线模型废弃。
+> 社区产品壳（默认身份）与商业产品壳本仓（注入身份）各自经 submodule pin
+> 引用基座、独立发布。此前的自引用 / base 分支双线模型废弃。
+> 2026-09-09 起：商业专属实现（nuwax 前端本地化承载 / 登录桥等）自基座迁入
+> 本仓 overlay/，基座回归产品中立；壳↔nuwax 通信桥已支持宿主身份区分
+> （x-client-type 与桥 host.getProduct() 随注入标识派生）。
 ```
 
 ## 与社区版 / nuwa-cli 的隔离（同机双开互不干扰）
@@ -42,10 +47,11 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 ```bash
 git clone https://github.com/nuwax-ai/nuwa-work.git && cd nuwa-work
 git submodule update --init nuwa-electron-shell          # 基座仓 nuwa-electron-shell main 分支（公开）
-git -C nuwa-electron-shell submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
-npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit）
-npm run base:dev       # 基座 make electron-dev（已注入商业 env）
-npm run base:test      # 全量 vitest（--no-inject：测试基线=社区默认值，基线 exit=0 / 1282 用例）
+git submodule update --init nuwax                        # 壳根 nuwax 前端（dist 随仓提交，无需构建）
+git -C nuwa-electron-shell submodule update --init nuwax # 过渡期：基座内嵌 nuwax（基座瘦身后移除）
+npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit + 前置 overlay 同步）
+npm run base:dev       # 基座 make electron-dev（前置 overlay 同步 + 注入商业 env）
+npm run base:test      # 全量 vitest（--no-inject：社区基线=干净基座源码，exit=0）
 
 # 测试/运行前还需准备型资源（gitignore，fresh clone 必做）：
 cd nuwa-electron-shell/crates/agent-electron-client && npm run prepare:mcp-proxy
@@ -59,11 +65,12 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 
 - **基座升级**：功能改动在 nuwa-electron-shell 提交；本壳发版前 bump submodule
   pin（`git -C nuwa-electron-shell fetch origin && git -C nuwa-electron-shell checkout <sha>` →
-  外层提交 pin bump）。
-- **社区版**：nuwax-ai/nucaclaw 为社区产品壳（默认身份、通道 nuwaclaw-electron），
-  与商业版同源基座、各自独立发布，互不影响。
-- **内层 nuwax pin 维护**：基座 bump nuwax gitlink 后，须同步快进 nuwax 仓
-  的 `pin/nuwa-work` 分支到同一提交（CI 匿名拉取依赖它）。
+  外层提交 pin bump），并跑 `npm run overlay:check` 核对覆写文件与新版基座的差异。
+- **社区版**：社区产品壳（默认身份、通道 nuwaclaw-electron）与商业版同源基座、
+  各自独立发布，互不影响。
+- **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 后，须同步快进 nuwax 仓的
+  `pin/nuwa-work` 分支到同一提交（CI 匿名拉取依赖它）；过渡期内基座内嵌 nuwax
+  的 gitlink bump 同样要同步该分支（基座瘦身后仅剩壳根一处）。
 
 ## 发版流程
 
@@ -91,7 +98,9 @@ beta 通道：`prerelease-v{x.y.z}` tag（Draft Release，unsigned Windows 包�
 - [ ] Windows 签名机按 docs/sign-windows.md 完成一次 sign:win 演练
 - [ ] 验证 OSS `nuwa-work-electron/` 指针与社区版 `nuwaclaw-electron/` 互不影响
 
-## overlay/
+## overlay/ —— 商业自有代码（文件覆写机制）
 
-商业自有代码的预留落位（当前为空）。可放：壳层启动参数、商业专属 preload/webview
-注入、发布期资产替换等；涉及基座深层改动的功能在基座仓 nuwa-electron-shell 提交实现。
+商业专属实现不进基座（基座产品中立，服务 nuwa-cli / nuwaclaw / nuwa-work 三方），
+放在 `overlay/` 下按基座相对路径组织，构建/开发前由 `scripts/sync-overlay.js`
+整文件覆写进基座工作树（`base:*` 与 CI 已自动前置同步；`--check` 干跑核对、
+`--clean` 还原）。机制与纪律详见 [overlay/README.md](./overlay/README.md)。

@@ -6,22 +6,27 @@
  *   node scripts/in-base.js -- <command> [args...]
  *   npm run base:install / base:dev / base:test / base:bundle
  *
- * 注入的 env（可被外层同名变量覆盖）与 CI 构建步骤保持一致：
+ * 执行顺序：
+ *   1. overlay 同步（scripts/sync-overlay.js）——把 overlay/ 商业自有代码覆写进基座
+ *      工作树（当前为空即 no-op）；--no-inject 跳过（社区基线须用干净基座源码跑）。
+ *   2. 商业 env 注入（可被外层同名变量覆盖），与 CI 构建步骤保持一致：
  *   NUWAX_APP_IDENTIFIER=nuwawork      → 数据目录 ~/.nuwawork（首启自动迁移 ~/.nuwaclaw）
  *   NUWAX_APP_DISPLAY_NAME=女娲 Nuwax  → 窗口标题等展示名
  *   NUWAX_UPDATE_FEED_BASE             → 独立更新通道 nuwa-work-electron
  *   NUWAX_PORT_OFFSET=1000             → 默认端口整体 +1000（19099/61002~61009/61173），
  *                                         与社区版 nuwaclaw、nuwa-cli 同机双开不冲突
+ *   NUWAX_FRONTEND_DIST                → dev 模式 nuwax 前端 dist 位置（壳根 nuwax/ 子模块）
  * 机制详见基座 crates/agent-electron-client/src/shared/constants.ts 头注（构建期 define 注入）。
  */
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const baseDir = path.join(__dirname, '..', 'nuwa-electron-shell');
+const rootDir = path.join(__dirname, '..');
+const baseDir = path.join(rootDir, 'nuwa-electron-shell');
 
 // 解析参数：[--no-inject] -- <command> [args...]
-// --no-inject：不注入商业 env（测试基线须用社区默认值跑，商业行为由专项
-// env 测试覆盖，如 migrate.commercial.test.ts / constants.port-offset.test.ts）
+// --no-inject：不注入商业 env、不同步 overlay（测试基线须用社区默认值跑干净基座，
+// 商业行为由专项 env 测试覆盖，如 migrate.commercial.test.ts / constants.port-offset.test.ts）
 const argv = process.argv.slice(2);
 const noInject = argv[0] === '--no-inject';
 if (noInject) argv.shift();
@@ -30,6 +35,17 @@ if (argv[0] !== '--' || argv.length < 2) {
   process.exit(1);
 }
 const cmd = argv.slice(1);
+
+if (!noInject) {
+  const sync = spawnSync('node', [path.join(__dirname, 'sync-overlay.js')], {
+    stdio: 'inherit',
+    cwd: rootDir,
+  });
+  if (sync.status !== 0) {
+    console.error('[in-base] overlay 同步失败，中止');
+    process.exit(sync.status ?? 1);
+  }
+}
 
 const env = noInject
   ? { ...process.env }
@@ -41,6 +57,7 @@ const env = noInject
         process.env.NUWAX_UPDATE_FEED_BASE ||
         'https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwa-work-electron',
       NUWAX_PORT_OFFSET: process.env.NUWAX_PORT_OFFSET || '1000',
+      NUWAX_FRONTEND_DIST: process.env.NUWAX_FRONTEND_DIST || path.join(rootDir, 'nuwax', 'dist'),
     };
 
 const result = spawnSync(cmd[0], cmd.slice(1), {

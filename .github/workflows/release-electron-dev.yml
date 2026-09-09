@@ -119,7 +119,9 @@ jobs:
 
       # 显式两层 submodule init（不依赖 checkout action 内部递归 sync）：
       # nuwa-electron-shell submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
-      #   github.token 注入凭据）；nuwax → 基座内嵌前端（公开可匿名拉取）
+      #   github.token 注入凭据）；nuwax → 前端子模块（公开可匿名拉取）。
+      #   壳根 nuwax/（商业前端 pin，pin/nuwa-work 分支）为 dist 事实来源；
+      #   基座内嵌 nuwax 为过渡期兼容（基座瘦身后移除）
       - name: Init submodules (nuwa-electron-shell + nuwax)
         shell: bash
         env:
@@ -130,15 +132,23 @@ jobs:
           export GH_TOKEN="${GH_SUBMODULE_TOKEN}"
           gh auth setup-git
           git submodule update --init nuwa-electron-shell
-          # nuwax 嵌套子模块 .gitmodules 已切回 GitHub（base 422fd1b0）；此处显式
-          # 覆盖保持双保险（远端公开可匿名拉取，pin 提交由 pin/nuwa-work 分支承载，
-          # bump 内层 pin 时须同步快进该分支，否则 CI 匿名拉取断裂）
+          git submodule update --init nuwax
+          # 基座内嵌 nuwax（过渡期）：显式覆盖保持双保险（远端公开可匿名拉取，
+          # bump 内层 pin 时须同步快进 pin/nuwa-work 分支，否则 CI 匿名拉取断裂）
           git -C nuwa-electron-shell config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
           git -C nuwa-electron-shell submodule update --init nuwax
           git submodule status
           # 强校验：submodule update 内部重试失败时可能以 0 退出（第三次 CI 实测假绿）
           test -d nuwa-electron-shell/crates/agent-electron-client || { echo "::error::nuwa-electron-shell submodule not checked out"; exit 1; }
-          test -d nuwa-electron-shell/nuwax/dist || { echo "::error::nuwax dist missing"; exit 1; }
+          test -d nuwa-electron-shell/nuwax/dist || { echo "::error::nuwax dist missing (nested)"; exit 1; }
+          test -d nuwax/dist || { echo "::error::nuwax dist missing (shell root)"; exit 1; }
+
+      # 商业自有代码整文件覆写进基座工作树（overlay/ 机制见 scripts/sync-overlay.js）
+      - name: Sync overlay into base worktree
+        shell: bash
+        run: |
+          node scripts/sync-overlay.js
+          git -C nuwa-electron-shell status --short | head -40 || true
 
       - name: Set version & commercial branding in package.json
         shell: bash
