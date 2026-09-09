@@ -149,7 +149,7 @@ jobs:
           # 商业身份：文件名/包名一律 ASCII（productName=nuwa-work）；展示文案
           # （女娲 Nuwax）走 CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
           npm pkg set build.appId="com.nuwax-ai.nuwa-work"
-          npm pkg set build.productName="nuwa-work"
+          npm pkg set build.productName="NuwaWork"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
           echo "package.json version: $(npm pkg get version), appId: $(npm pkg get build.appId), productName: $(npm pkg get build.productName)"
 
@@ -372,7 +372,7 @@ jobs:
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
       # 发布通道参数（nuwa-work 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
       RELEASE_ROOT: "nuwa-work-electron"
-      PRODUCT_PREFIX: "nuwa-work"
+      PRODUCT_PREFIX: "NuwaWork"
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - name: Ensure awscli v2 (for S3)
