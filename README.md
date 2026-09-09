@@ -5,7 +5,7 @@
 
 ```
 nuwa-work/（main = 商业产品壳）
-├── nuwaclaw/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
+├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
 │               #   （全部功能模块：agent-electron-client + agent-kit + gui-server + nuwax 前端）
 ├── scripts/in-base.js   # 在基座内执行命令并注入商业 env（dev/test/bundle 快捷入口）
 ├── .github/workflows/   # 发布编排（release / sync，构建在基座内执行）
@@ -41,14 +41,14 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 
 ```bash
 git clone https://github.com/nuwax-ai/nuwa-work.git && cd nuwa-work
-git submodule update --init nuwaclaw          # 基座仓 nuwa-electron-shell main 分支（公开）
-git -C nuwaclaw submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
+git submodule update --init nuwa-electron-shell          # 基座仓 nuwa-electron-shell main 分支（公开）
+git -C nuwa-electron-shell submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
 npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit）
 npm run base:dev       # 基座 make electron-dev（已注入商业 env）
 npm run base:test      # 全量 vitest（--no-inject：测试基线=社区默认值，基线 exit=0 / 1282 用例）
 
 # 测试/运行前还需准备型资源（gitignore，fresh clone 必做）：
-cd nuwaclaw/crates/agent-electron-client && npm run prepare:mcp-proxy
+cd nuwa-electron-shell/crates/agent-electron-client && npm run prepare:mcp-proxy
 # 完整资源（node/git/uv/nuwaxcode/ripgrep 等）用基座根 Makefile：make electron-prepare
 ```
 
@@ -58,7 +58,7 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 ## 与基座 / 社区版的同步
 
 - **基座升级**：功能改动在 nuwa-electron-shell 提交；本壳发版前 bump submodule
-  pin（`git -C nuwaclaw fetch origin && git -C nuwaclaw checkout <sha>` →
+  pin（`git -C nuwa-electron-shell fetch origin && git -C nuwa-electron-shell checkout <sha>` →
   外层提交 pin bump）。
 - **社区版**：nuwax-ai/nucaclaw 为社区产品壳（默认身份、通道 nuwaclaw-electron），
   与商业版同源基座、各自独立发布，互不影响。
@@ -69,7 +69,7 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 
 1. **准备**：`release-notes/electron-v{x.y.z}.md`（缺省用默认文案）。
 2. **构建**：`git tag electron-v{x.y.z} && git push origin electron-v{x.y.z}`
-   → `release-electron.yml`：checkout 壳 + 两层 submodule init（nuwaclaw→nuwax），
+   → `release-electron.yml`：checkout 壳 + 两层 submodule init（nuwa-electron-shell→nuwax），
    基座内 install/prepare/dist，注入商业品牌与端口；macOS 自动签名+公证，
    Windows 出 unsigned 包（CI 显式校验沙箱 helper 产物存在）。
 3. **Windows 人工签名**：见 [docs/sign-windows.md](./docs/sign-windows.md)

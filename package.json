@@ -2,7 +2,7 @@
   "name": "nuwa-work",
   "version": "1.0.0",
   "private": true,
-  "description": "女娲 Nuwax 商业版 Electron 客户端 —— nuwaclaw 基座薄壳（业务与构建系统在 nuwaclaw/ submodule 的 base 分支内）",
+  "description": "女娲 Nuwax 商业版 Electron 客户端 —— 产品壳（功能模块在 nuwa-electron-shell/ submodule，基座仓 main 分支）",
   "packageManager": "pnpm@9.15.5",
   "scripts": {
     "in-base": "node scripts/in-base.js",

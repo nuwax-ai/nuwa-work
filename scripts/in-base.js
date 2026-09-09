@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 在基座（nuwaclaw/ submodule，base 分支）内执行命令，并预注入商业构建环境变量。
+ * 在基座（nuwa-electron-shell/ submodule，main 分支）内执行命令，并预注入商业构建环境变量。
  *
  * 用法：
  *   node scripts/in-base.js -- <command> [args...]
@@ -17,7 +17,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const baseDir = path.join(__dirname, '..', 'nuwaclaw');
+const baseDir = path.join(__dirname, '..', 'nuwa-electron-shell');
 
 // 解析参数：[--no-inject] -- <command> [args...]
 // --no-inject：不注入商业 env（测试基线须用社区默认值跑，商业行为由专项
