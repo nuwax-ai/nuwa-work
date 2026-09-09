@@ -1,8 +1,7 @@
 # nuwa-work 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
-# 由基座 release-electron-dev.yml 移植为薄壳版：路径前缀 nuwaclaw/、
-# checkout 后以 github.token 拉 submodule（公开仓 nuwax-ai/nuclaw base 分支）、
-# pnpm 显式版本、沙箱 helper 断言。通道 nuwa-work-electron/；品牌/端口注入与
-# release-electron.yml 一致。
+# 商业产品壳（基座仓 nuwax-ai/nuwa-electron-shell main 分支承载业务）：
+# 路径前缀 nucaclaw/、checkout 后以 github.token 拉基座 submodule、pnpm 显式版本、
+# 沙箱 helper 断言。通道 nuwa-work-electron/；品牌/端口注入与 release-electron.yml 一致。
 
 # Electron 桌面客户端 — 预发布版本构建
 # 通过 prerelease-v* tag 触发，构建全平台安装包并创建 GitHub Draft Release，
@@ -119,8 +118,8 @@ jobs:
         uses: actions/checkout@v4
 
       # 显式两层 submodule init（不依赖 checkout action 内部递归 sync）：
-      # nuwaclaw → 公开仓 nuwax-ai/nuclaw 的 base 分支（github.token 注入凭据）；
-      # nuwax → base 内嵌前端（公开可匿名拉取）
+      # nuwaclaw → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
+      #   github.token 注入凭据）；nuwax → 基座内嵌前端（公开可匿名拉取）
       - name: Init submodules (nuwaclaw + nuwax)
         shell: bash
         env:

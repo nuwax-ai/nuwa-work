@@ -1,26 +1,25 @@
 # nuwa-work — 女娲 Nuwax 商业版 Electron 客户端
 
-**nuwa-work 是 nuwaclaw（社区开源版）的基座薄壳 + 商业发布仓**，本身是干净的
-Electron 项目格式（无 Rust / 无 monorepo 包装）：
+**nuwa-work 是商业产品壳**——功能模块在基座仓 [nuwa-electron-shell](https://github.com/nuwax-ai/nuwa-electron-shell)，
+本仓注入商业身份并发布；本身是干净的 Electron 项目格式（无 Rust / 无 monorepo 包装）：
 
 ```
-nuwa-work/（main = 壳仓）
-├── nuwaclaw/   # submodule → 公开仓 nuwax-ai/nuclaw 的 base 分支
-│               #   （nuwaclaw 全部业务与构建系统 = 社区 main 历史 + 1.0 全量功能 + 基座改造）
+nuwa-work/（main = 商业产品壳）
+├── nuwaclaw/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
+│               #   （全部功能模块：agent-electron-client + agent-kit + gui-server + nuwax 前端）
 ├── scripts/in-base.js   # 在基座内执行命令并注入商业 env（dev/test/bundle 快捷入口）
 ├── .github/workflows/   # 发布编排（release / sync，构建在基座内执行）
 ├── release-notes/  docs/  overlay/
 └── package.json
 
-商业开发线 = nuwax-ai/nuclaw 仓的 `base` 分支：社区 main(811009627) 历史 +
-108 个 1.0 提交（v2 会话渲染器/本地目录/侧栏折叠/nuwax 集成等）+ 基座改造；
-1.0 全量历史另存同仓 `archive/electron-client-1.0` 分支。社区开源版即同仓
-`main` 分支，同一仓内 `main → base` 单向合并演进。
+商业开发线 = 基座仓 nuwa-electron-shell 的 main 分支（原 nuwaclaw 社区 main
+全历史 + 1.0 功能复刻线，2026-09-09 合并统一）；产品差异的全部边界 = 4 个
+构建期注入 env（语义见基座 README「注入契约」）。
 
-> 2026-09-09 架构调整：此前 base 分支寄居本仓、submodule 自引用本仓 URL，
-> 现改为直指 nuwax-ai/nuclaw 的 base 分支（与本地工作副本
-> /Users/apple/workspace/nuwaclaw 同源），消除"同仓双分支 + 自引用"的歧义
-> 与双份克隆开销。
+> 2026-09-09 三层架构定型：基座仓（nuwa-electron-shell，公开）承载功能模块；
+> 社区产品壳 [nuwax-ai/nucaclaw](https://github.com/nuwax-ai/nucaclaw)（默认身份）
+> 与商业产品壳本仓（注入身份）各自经 submodule pin 引用基座、独立发布。
+> 此前的自引用 / base 分支双线模型废弃。
 ```
 
 ## 与社区版 / nuwa-cli 的隔离（同机双开互不干扰）
@@ -42,7 +41,7 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 
 ```bash
 git clone https://github.com/nuwax-ai/nuwa-work.git && cd nuwa-work
-git submodule update --init nuwaclaw          # nuwax-ai/nuclaw 仓 base 分支；勿用 --recursive（base 树有 vcpkg 孤儿 gitlink）
+git submodule update --init nuwaclaw          # 基座仓 nuwa-electron-shell main 分支（公开）
 git -C nuwaclaw submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
 npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit）
 npm run base:dev       # 基座 make electron-dev（已注入商业 env）
@@ -56,16 +55,15 @@ cd nuwaclaw/crates/agent-electron-client && npm run prepare:mcp-proxy
 Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由基座
 `prepare:all` 在 Windows 宿主 cargo 构建；本壳不携带任何 Rust。
 
-## 与社区版 / 历史线的同步
+## 与基座 / 社区版的同步
 
-- **社区 → 商业（单向，同仓）**：`git -C nuwaclaw fetch origin &&
-  git -C nuwaclaw merge origin/main`（origin 即 nuwax-ai/nuclaw），
-  `git -C nuwaclaw push origin base`，再 bump 壳的 submodule pin。
-- **1.0 历史回溯**：`archive/electron-client-1.0` 分支与 base 历史都在
-  nuwax-ai/nuclaw 仓，`git log` / `git cherry-pick <SHA>` 直接用。
-- **内层 nuwax pin 维护**：bump base 内 nuwax gitlink 后，须同步快进 nuwax 仓
+- **基座升级**：功能改动在 nuwa-electron-shell 提交；本壳发版前 bump submodule
+  pin（`git -C nuwaclaw fetch origin && git -C nuwaclaw checkout <sha>` →
+  外层提交 pin bump）。
+- **社区版**：nuwax-ai/nucaclaw 为社区产品壳（默认身份、通道 nuwaclaw-electron），
+  与商业版同源基座、各自独立发布，互不影响。
+- **内层 nuwax pin 维护**：基座 bump nuwax gitlink 后，须同步快进 nuwax 仓
   的 `pin/nuwa-work` 分支到同一提交（CI 匿名拉取依赖它）。
-- 商业功能不回流社区 main。
 
 ## 发版流程
 
@@ -96,4 +94,4 @@ beta 通道：`prerelease-v{x.y.z}` tag（Draft Release，unsigned Windows 包�
 ## overlay/
 
 商业自有代码的预留落位（当前为空）。可放：壳层启动参数、商业专属 preload/webview
-注入、发布期资产替换等；涉及基座深层改动的功能仍以 base 分支提交实现。
+注入、发布期资产替换等；涉及基座深层改动的功能在基座仓 nuwa-electron-shell 提交实现。
