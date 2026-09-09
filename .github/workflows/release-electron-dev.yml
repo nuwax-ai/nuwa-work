@@ -1,7 +1,7 @@
 # nuwa-work 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
 # 由基座 release-electron-dev.yml 移植为薄壳版：路径前缀 nuwaclaw/、
-# checkout submodules:true 拉自引用私仓 submodule、pnpm 显式版本、沙箱 helper 断言。
-# 通道 nuwa-work-electron/；品牌/端口注入与 release-electron.yml 一致。
+# checkout 后以 GH_PAT 拉跨仓私仓 submodule（nuwax-ai/nuwaclaw-work）、pnpm 显式版本、
+# 沙箱 helper 断言。通道 nuwa-work-electron/；品牌/端口注入与 release-electron.yml 一致。
 
 # Electron 桌面客户端 — 预发布版本构建
 # 通过 prerelease-v* tag 触发，构建全平台安装包并创建 GitHub Draft Release，
@@ -118,20 +118,21 @@ jobs:
         uses: actions/checkout@v4
 
       # 显式两层 submodule init（不依赖 checkout action 内部递归 sync）：
-      # nuwaclaw → 本仓 base 分支（自引用私仓，用 github.token 注入凭据）；
-      # nuwax → base 内嵌前端（远端公开可匿名拉取，dist 随仓提交）
+      # nuwaclaw → 跨仓私仓 nuwax-ai/nuwaclaw-work 的 base 分支（GH_PAT 注入凭据，
+      #   github.token 仅限本仓无跨仓权限）；nuwax → base 内嵌前端（公开可匿名拉取）
       - name: Init submodules (nuwaclaw + nuwax)
         shell: bash
         env:
-          GH_SUBMODULE_TOKEN: ${{ github.token }}
+          GH_SUBMODULE_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          # 私仓 submodule 认证统一走 gh CLI 凭据助手（跨平台一致；Windows Git 的
+          # 跨仓私仓 submodule 认证统一走 gh CLI 凭据助手（跨平台一致；Windows Git 的
           # GCM 会劫持/覆盖 URL 内嵌凭据，insteadOf 亦不生效——均实测失败）
           export GH_TOKEN="${GH_SUBMODULE_TOKEN}"
           gh auth setup-git
           git submodule update --init nuwaclaw
-          # nuwax 嵌套子模块的 .gitmodules 指向私有 GitLab（CI 无凭据）——改走公开
-          # GitHub 镜像（nuwax-ai/nuwax，pin 提交在 pin/nuwa-work 分支可匿名拉取）
+          # nuwax 嵌套子模块 .gitmodules 已切回 GitHub（base 422fd1b0）；此处显式
+          # 覆盖保持双保险（远端公开可匿名拉取，pin 提交由 pin/nuwa-work 分支承载，
+          # bump 内层 pin 时须同步快进该分支，否则 CI 匿名拉取断裂）
           git -C nuwaclaw config submodule.nuwax.url https://github.com/nuwax-ai/nuwax.git
           git -C nuwaclaw submodule update --init nuwax
           git submodule status

@@ -4,18 +4,22 @@
 Electron 项目格式（无 Rust / 无 monorepo 包装）：
 
 ```
-nuwa-work/（main = 壳，私有仓）
-├── nuwaclaw/   # submodule → 本仓 base 分支（nuwaclaw 全部业务与构建系统，
-│               #   = nuwaclaw 社区 main 历史 + 1.0 全量功能 + 基座改造）
+nuwa-work/（main = 壳仓）
+├── nuwaclaw/   # submodule → 私有仓 nuwax-ai/nuwaclaw-work 的 base 分支
+│               #   （nuwaclaw 全部业务与构建系统 = 社区 main 历史 + 1.0 全量功能 + 基座改造）
 ├── scripts/in-base.js   # 在基座内执行命令并注入商业 env（dev/test/bundle 快捷入口）
 ├── .github/workflows/   # 发布编排（release / sync，构建在基座内执行）
 ├── release-notes/  docs/  overlay/
 └── package.json
 
-本仓 base 分支 = 商业开发线：nuwaclaw 社区 main(811009627) 历史 + 108 个 1.0 提交
-（v2 会话渲染器/本地目录/侧栏折叠/nuwax 集成等）+ 基座改造。1.0 全量历史另存
-archive/electron-client-1.0 分支。社区开源版在公开仓
+商业开发线在 nuwaclaw-work（私有仓）的 base 分支：nuwaclaw 社区 main(811009627)
+历史 + 108 个 1.0 提交（v2 会话渲染器/本地目录/侧栏折叠/nuwax 集成等）+ 基座改造；
+1.0 全量历史另存该仓 archive/electron-client-1.0 分支。社区开源版在公开仓
 [nuwax-ai/nuwaclaw](https://github.com/nuwax-ai/nuwaclaw) 的 main 独立演进。
+
+> 2026-09-09 架构调整：此前 base 分支寄居本仓、submodule 自引用本仓 URL，
+> 现已拆分为独立私有仓 [nuwax-ai/nuwaclaw-work](https://github.com/nuwax-ai/nuwaclaw-work)，
+> 消除"同仓双分支 + 自引用"的歧义与双份克隆开销。
 ```
 
 ## 与社区版 / nuwa-cli 的隔离（同机双开互不干扰）
@@ -37,7 +41,7 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 
 ```bash
 git clone https://github.com/nuwax-ai/nuwa-work.git && cd nuwa-work
-git submodule update --init nuwaclaw          # 自引用私仓（需权限）；勿用 --recursive（base 树有 vcpkg 孤儿 gitlink）
+git submodule update --init nuwaclaw          # 跨仓私仓 nuwaclaw-work（需成员权限）；勿用 --recursive（base 树有 vcpkg 孤儿 gitlink）
 git -C nuwaclaw submodule update --init nuwax # nuwax 前端（dist 随仓提交，无需构建）
 npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit）
 npm run base:dev       # 基座 make electron-dev（已注入商业 env）
@@ -53,11 +57,14 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 
 ## 与社区版 / 历史线的同步
 
-- **社区 → 商业（单向）**：`git checkout base && git remote add nuwaclaw
+- **社区 → 商业（单向）**：`git -C nuwaclaw remote add nuwaclaw
   https://github.com/nuwax-ai/nuwaclaw.git`（一次性），之后定期
-  `git fetch nuwaclaw && git merge nuwaclaw/main`，再 bump 壳的 submodule pin。
-- **1.0 历史回溯**：`archive/electron-client-1.0` 分支与 base 历史都在本仓，
-  `git log` / `git cherry-pick <SHA>` 直接用。
+  `git -C nuwaclaw fetch nuwaclaw && git -C nuwaclaw merge nuwaclaw/main`，
+  `git -C nuwaclaw push work base`（work = nuwaclaw-work 远端），再 bump 壳的 submodule pin。
+- **1.0 历史回溯**：`archive/electron-client-1.0` 分支与 base 历史都在
+  nuwaclaw-work 仓，`git log` / `git cherry-pick <SHA>` 直接用。
+- **内层 nuwax pin 维护**：bump base 内 nuwax gitlink 后，须同步快进公开仓
+  nuwax 的 `pin/nuwa-work` 分支到同一提交（CI 匿名拉取依赖它）。
 - 商业功能不回流社区仓。
 
 ## 发版流程
@@ -75,12 +82,14 @@ beta 通道：`prerelease-v{x.y.z}` tag（Draft Release，unsigned Windows 包�
 
 ## 首次启用清单（人工操作）
 
-- [ ] GitHub Settings → Secrets（与社区版同值，共用证书）：`GH_PAT`；
+- [ ] GitHub Settings → Secrets（与社区版同值，共用证书）：`GH_PAT`（必需：
+      CI 经它拉取跨仓私仓 submodule nuwaclaw-work，需对该仓有读权限）；
       `APPLE_TEAM_ID` / `APPLE_SIGNING_IDENTITY` / `APPLE_CERTIFICATE` /
       `APPLE_CERTIFICATE_PASSWORD` / `APPLE_API_KEY` / `APPLE_API_KEY_ID` /
       `APPLE_ISSUER_ID`；`MINIO_ACCESS_KEY_ID` / `MINIO_SECRET_ACCESS_KEY`；
       `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET`
-- [ ] 打首个 `prerelease-v*` tag 验证构建链路（两层 submodule、品牌/端口注入、产物名）
+- [ ] 打首个 `prerelease-v*` tag 验证构建链路（两层 submodule、品牌/端口注入、产物名）；
+      平时可用 `ci-smoke.yml`（workflow_dispatch）快速回归 submodule 链路
 - [ ] Windows 签名机按 docs/sign-windows.md 完成一次 sign:win 演练
 - [ ] 验证 OSS `nuwa-work-electron/` 指针与社区版 `nuwaclaw-electron/` 互不影响
 
