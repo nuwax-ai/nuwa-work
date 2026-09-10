@@ -69,8 +69,7 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 - **社区版**：社区产品壳（默认身份、通道 nuwaclaw-electron）与商业版同源基座、
   各自独立发布，互不影响。
 - **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 后，须同步快进 nuwax 仓的
-  `pin/nuwawork` 分支到同一提交（CI 匿名拉取依赖它）；过渡期内基座内嵌 nuwax
-  的 gitlink bump 同样要同步该分支（基座瘦身后仅剩壳根一处）。
+  `pin/nuwawork` 分支到同一提交（CI 匿名拉取依赖它；基座瘦身后仅剩壳根一处）。
 
 ## 发版流程
 
