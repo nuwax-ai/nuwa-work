@@ -157,9 +157,9 @@ jobs:
           VERSION="${{ needs.prepare.outputs.version }}"
           npm pkg set version="$VERSION"
           # 商业身份：文件名/包名一律 ASCII（productName=NuwaWork → NuwaWork.app /
-          # NuwaWork-Setup-*.exe 等）；展示文案（女娲 Nuwax）走 CFBundleDisplayName
-          # 与运行时 APP_DISPLAY_NAME，不进文件系统
-          npm pkg set build.appId="com.nuwax-ai.nuwa-work"
+          # NuwaWork-Setup-*.exe 等；appId 尾段与注入 identifier 一致=nuwawork）；
+          # 展示文案（女娲 Nuwax）走 CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
+          npm pkg set build.appId="com.nuwax-ai.nuwawork"
           npm pkg set build.productName="NuwaWork"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
           # 前端 dist 打包来源（基座已中立化移除该条目）：壳根 nuwax/dist →

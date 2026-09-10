@@ -31,7 +31,7 @@ nuwaclaw / nuwa-work 三方）；本仓差异 = 4 个构建期注入 env（语�
 
 | 维度 | 社区版 nuwaclaw | 商业版 nuwa-work（本仓） |
 |---|---|---|
-| appId / bundle id | com.nuwax-ai.nuwaclaw | **com.nuwax-ai.nuwa-work**（CI 构建时 npm pkg set） |
+| appId / bundle id | com.nuwax-ai.nuwaclaw | **com.nuwax-ai.nuwawork**（CI 构建时 npm pkg set，尾段与注入 identifier 一致） |
 | 产物名前缀 | NuwaClaw | **NuwaWork**（ASCII；展示文案仍为 女娲 Nuwax，走 CFBundleDisplayName/APP_DISPLAY_NAME） |
 | 数据目录 | ~/.nuwaclaw | **~/.nuwawork**（首启自动从 ~/.nuwaclaw 一次性迁移） |
 | 默认端口 | 18099 / 60002~60009 / 60173 | **整体 +1000**：19099 / 61002~61009 / 61173（`NUWAX_PORT_OFFSET=1000` 构建期注入；nuwa-cli 占 60015/60016/10076，三方错开） |

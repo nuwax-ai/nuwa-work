@@ -1,6 +1,6 @@
 {
   "name": "nuwa-work",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "女娲 Nuwax 商业版 Electron 客户端 —— 产品壳（功能模块在 nuwa-electron-shell/ submodule，基座仓 main 分支）",
   "packageManager": "pnpm@9.15.5",
