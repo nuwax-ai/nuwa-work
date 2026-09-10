@@ -59,3 +59,5 @@ macOS 为红绿灯({16,16}) + 顶行图标精简、无窗口内菜单（系统�
 3. 设置齿轮落位：Win/Linux 放顶行右侧（三键之前）、mac 放左侧 icon 组（红绿灯避让后）——计划只写"保留设置"，落位为实现细化。
 4. 验证补充：mac「帮助→检查更新」实测触发主进程真实更新检查（dev 通道 OSS 404 属预期，链路打通）；Win/Linux 形态已于 2026-09-10 在 win-pc（SSH 远程 Windows 机）实测通过：完整商业链路（overlay 网关+nuwax dist）+ 顶栏/菜单栏/三键/状态点/「还原」标签全部符合。
 5. 样式修正一轮（c18bd59b→5e78b939，用户评审"样式不过关"后对照参考图重做）：顶行 48→36px（对齐 nuwax shellAvoid.TOP=36）；三键换 captionGlyphs 1px 细线 SVG（替代 antd 描边图标）；设置齿轮撤出顶行（Win/Linux 收进「关于(A)」下拉首项，mac 应用菜单新增「设置...」走 menu:settings 事件）；菜单文字 13→12px。同轮发现 mac 窗口菜单 back/forward 无对应 Electron role，改显式 click。
+6. 布局定稿轮（5e78b939→0d60ec3b，用户逐条反馈驱动）：功能按钮全量移至左侧（侧栏开关→设置→历史导航→服务状态点→菜单栏，右侧仅三键±更新入口）；三键 46×36→40×28 贴顶；顶行去除实底背景（全平台透明，透出页面避让带自身底色）；侧栏开关恒可点（原"无二级菜单置灰"导致主页失效）。
+7. 退让/收起轮（nuwax feat/ui-avoid-collapse@119067d2e 已合入 feat-dong.0930@3911c3939 + 壳 c8c989f3）：page-container 避让改平台分支——Win/Linux 恒避 TOP36（原 TOP+8=44 收窄），mac 展开不退让/整条侧栏收起才避 TOOLBAR44；page-container 收起态补 margin-left=@marginXs 与右下留白对称；壳 mac 顶行收窄为左侧 300px 图标/拖拽区（mac 不退让后全宽拖拽会挡内容顶部交互）、更新入口 mac 独立浮右上。**nuwax pin 保持 c23224f71 未前移**（合并带入 feat-2026.9.30 内容待验证），win-pc nuwax 已本地 build:dev 验证。
