@@ -1,6 +1,6 @@
 # overlay/ —— 商业自有代码（文件覆写机制）
 
-商业专属实现不进基座仓（基座产品中立，服务 nuwa-cli / nuwaclaw / nuwa-work 三方），
+商业专属实现不进基座仓（基座产品中立，服务 nuwa-cli / nuwaclaw / NuwaWork 三方），
 以**整文件覆写**方式注入基座构建：
 
 - 目录结构 = 基座仓相对路径：`overlay/crates/agent-electron-client/src/...`

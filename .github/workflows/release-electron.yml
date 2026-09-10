@@ -1,4 +1,4 @@
-# nuwa-work 商业版 — Electron 客户端发布（薄壳编排）
+# NuwaWork 商业版 — Electron 客户端发布（薄壳编排）
 #
 # 本仓 = 商业产品壳：业务与构建系统在 nuwa-electron-shell/ submodule（基座仓
 # nuwax-ai/nuwa-electron-shell 的 main 分支；2026-09-09 三层架构定型：
@@ -12,7 +12,7 @@
 #      并删除 extendInfo.CFBundleIdentifier 旧覆盖使 macOS bundle id 与 appId 统一
 #   5. 构建注入商业 env：NUWAX_APP_IDENTIFIER=nuwawork（→ ~/.nuwawork，首启自动
 #      迁移 ~/.nuwaclaw）、NUWAX_APP_DISPLAY_NAME、NUWAX_UPDATE_FEED_BASE（独立
-#      更新通道 nuwa-work-electron）、NUWAX_PORT_OFFSET=1000（端口整体 +1000，
+#      更新通道 nuwawork-electron）、NUWAX_PORT_OFFSET=1000（端口整体 +1000，
 #      与社区版/nuwa-cli 同机错开）
 #   6. Windows prepare 后显式断言沙箱 helper 产物存在（cargo 缺失时基座脚本只告警
 #      不失败，这里兜底防止静默产出无沙箱包）
@@ -23,7 +23,7 @@
 #   MINIO_ACCESS_KEY_ID / MINIO_SECRET_ACCESS_KEY；OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET
 # Windows 签名不在 CI：本地 SimplySign 手签，见 docs/sign-windows.md
 
-name: Release Electron App (nuwa-work)
+name: Release Electron App (NuwaWork)
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#electron-v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "nuwa-work release version: $VERSION"
+          echo "NuwaWork release version: $VERSION"
 
       - name: Read release notes
         id: notes
@@ -125,7 +125,7 @@ jobs:
 
       # 显式 submodule init（不依赖 checkout action 内部递归 sync）：
       # nuwa-electron-shell submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
-      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwa-work
+      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwawork
       #   分支承载；基座已不含内嵌 nuwax——前端 dist 打包来源=壳根 nuwax/dist）
       - name: Init submodules (nuwa-electron-shell + nuwax)
         shell: bash
@@ -321,7 +321,7 @@ jobs:
           # 商业版品牌/端口注入（构建期经 esbuild/vite define 固化）：
           NUWAX_APP_IDENTIFIER: nuwawork
           NUWAX_APP_DISPLAY_NAME: "女娲 Nuwax"
-          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwa-work-electron"
+          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwawork-electron"
           NUWAX_PORT_OFFSET: "1000"
         run: |
           if [ "${{ runner.os }}" = "macOS" ] && [ -z "${{ secrets.APPLE_CERTIFICATE }}" ]; then
@@ -367,7 +367,7 @@ jobs:
       OSS_BUCKET: "oss://nuwa-packages"
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
       # 商业版发布通道（与客户端 NUWAX_UPDATE_FEED_BASE 对应，勿与社区版 nuwaclaw-electron 混用）
-      RELEASE_ROOT: "nuwa-work-electron"
+      RELEASE_ROOT: "nuwawork-electron"
       PRODUCT_PREFIX: "NuwaWork"
       RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_CHANNEL: ${{ inputs.channel || 'stable' }}

@@ -1,6 +1,6 @@
-# nuwa-work — 女娲 Nuwax 商业版 Electron 客户端
+# NuwaWork — 女娲 Nuwax 商业版 Electron 客户端（仓库 [nuwa-work](https://github.com/nuwax-ai/nuwa-work)）
 
-**nuwa-work 是商业产品壳**——功能模块在基座仓 [nuwa-electron-shell](https://github.com/nuwax-ai/nuwa-electron-shell)，
+**NuwaWork 是商业产品壳**——功能模块在基座仓 [nuwa-electron-shell](https://github.com/nuwax-ai/nuwa-electron-shell)，
 本仓注入商业身份并发布；本身是干净的 Electron 项目格式（无 Rust / 无 monorepo 包装）：
 
 ```
@@ -8,7 +8,7 @@ nuwa-work/（main = 商业产品壳）
 ├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
 │               #   （产品中立功能模块：agent-electron-client + agent-kit + gui-server）
 ├── nuwax/                 # submodule → nuwax 前端（feat-dong.0930，dist 随仓提交；
-│               #   商业前端 pin，pin/nuwa-work 分支承载——基座瘦身后 dist 唯一来源）
+│               #   商业前端 pin，pin/nuwawork 分支承载——基座瘦身后 dist 唯一来源）
 ├── overlay/               # 商业自有代码（整文件覆写进基座工作树，见下「overlay/」）
 ├── scripts/               # in-base.js（基座内执行+商业 env 注入）+ sync-overlay.js
 ├── .github/workflows/     # 发布编排（release / sync，构建在基座内执行）
@@ -16,7 +16,7 @@ nuwa-work/（main = 商业产品壳）
 └── package.json
 
 商业开发线 = 基座仓 nuwa-electron-shell 的 main 分支（产品中立，服务 nuwa-cli /
-nuwaclaw / nuwa-work 三方）；本仓差异 = 4 个构建期注入 env（语义见基座 README
+nuwaclaw / NuwaWork 三方）；本仓差异 = 4 个构建期注入 env（语义见基座 README
 「注入契约」）+ overlay/ 商业自有代码 + 商业前端 pin。
 
 > 2026-09-09 三层架构定型：基座仓（nuwa-electron-shell，公开）承载功能模块；
@@ -29,13 +29,13 @@ nuwaclaw / nuwa-work 三方）；本仓差异 = 4 个构建期注入 env（语�
 
 ## 与社区版 / nuwa-cli 的隔离（同机双开互不干扰）
 
-| 维度 | 社区版 nuwaclaw | 商业版 nuwa-work（本仓） |
+| 维度 | 社区版 nuwaclaw | 商业版 NuwaWork（本仓） |
 |---|---|---|
 | appId / bundle id | com.nuwax-ai.nuwaclaw | **com.nuwax-ai.nuwawork**（CI 构建时 npm pkg set，尾段与注入 identifier 一致） |
 | 产物名前缀 | NuwaClaw | **NuwaWork**（ASCII；展示文案仍为 女娲 Nuwax，走 CFBundleDisplayName/APP_DISPLAY_NAME） |
 | 数据目录 | ~/.nuwaclaw | **~/.nuwawork**（首启自动从 ~/.nuwaclaw 一次性迁移） |
 | 默认端口 | 18099 / 60002~60009 / 60173 | **整体 +1000**：19099 / 61002~61009 / 61173（`NUWAX_PORT_OFFSET=1000` 构建期注入；nuwa-cli 占 60015/60016/10076，三方错开） |
-| 更新通道（OSS/MinIO） | nuwaclaw-electron/ | **nuwa-work-electron/** |
+| 更新通道（OSS/MinIO） | nuwaclaw-electron/ | **nuwawork-electron/** |
 | 证书 | Certum SimplySign（Windows 手签）+ Apple Developer ID（CI 签+公证） | 同一张证书（共用，SmartScreen/公证信誉共享） |
 
 品牌与端口全部为**构建期注入**（`NUWAX_APP_IDENTIFIER/DISPLAY_NAME/UPDATE_FEED_BASE/
@@ -69,7 +69,7 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 - **社区版**：社区产品壳（默认身份、通道 nuwaclaw-electron）与商业版同源基座、
   各自独立发布，互不影响。
 - **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 后，须同步快进 nuwax 仓的
-  `pin/nuwa-work` 分支到同一提交（CI 匿名拉取依赖它）；过渡期内基座内嵌 nuwax
+  `pin/nuwawork` 分支到同一提交（CI 匿名拉取依赖它）；过渡期内基座内嵌 nuwax
   的 gitlink bump 同样要同步该分支（基座瘦身后仅剩壳根一处）。
 
 ## 发版流程
@@ -96,11 +96,11 @@ beta 通道：`prerelease-v{x.y.z}` tag（Draft Release，unsigned Windows 包�
 - [ ] 打首个 `prerelease-v*` tag 验证构建链路（两层 submodule、品牌/端口注入、产物名）；
       平时可用 `ci-smoke.yml`（workflow_dispatch）快速回归 submodule 链路
 - [ ] Windows 签名机按 docs/sign-windows.md 完成一次 sign:win 演练
-- [ ] 验证 OSS `nuwa-work-electron/` 指针与社区版 `nuwaclaw-electron/` 互不影响
+- [ ] 验证 OSS `nuwawork-electron/` 指针与社区版 `nuwaclaw-electron/` 互不影响
 
 ## overlay/ —— 商业自有代码（文件覆写机制）
 
-商业专属实现不进基座（基座产品中立，服务 nuwa-cli / nuwaclaw / nuwa-work 三方），
+商业专属实现不进基座（基座产品中立，服务 nuwa-cli / nuwaclaw / NuwaWork 三方），
 放在 `overlay/` 下按基座相对路径组织，构建/开发前由 `scripts/sync-overlay.js`
 整文件覆写进基座工作树（`base:*` 与 CI 已自动前置同步；`--check` 干跑核对、
 `--clean` 还原）。机制与纪律详见 [overlay/README.md](./overlay/README.md)。

@@ -3,7 +3,7 @@
  * 缺省 direct——不配置即完全维持现状）决定是否起网关；env NUWAX_LOOPBACK=1
  * 可强制开启（开发验收用）。
  *
- * 【overlay 商业实现】本文件经 nuwa-work overlay 覆写基座 no-op 插槽
+ * 【overlay 商业实现】本文件经 NuwaWork overlay 覆写基座 no-op 插槽
  * （基座 services/loopbackGateway/index.ts）；导出面必须保持兼容
  * （stopLoopbackGateway / refreshLoopbackGateway）。
  *

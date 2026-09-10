@@ -5,7 +5,7 @@
 # 与 release workflow 的 Init submodules 步骤同构，在不动发布 tag 的情况下即可
 # 回归验证以下变更：
 #   - .gitmodules URL 变更 / pin bump
-#   - nuwax pin 提交在 pin/nuwa-work 分支的可达性
+#   - nuwax pin 提交在 pin/nuwawork 分支的可达性
 name: CI Smoke (submodules)
 
 on:

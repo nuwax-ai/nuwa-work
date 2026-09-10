@@ -1,7 +1,7 @@
-# nuwa-work 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
+# NuwaWork 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
 # 商业产品壳（基座仓 nuwax-ai/nuwa-electron-shell main 分支承载业务）：
 # 路径前缀 nucaclaw/、checkout 后以 github.token 拉基座 submodule、pnpm 显式版本、
-# 沙箱 helper 断言。通道 nuwa-work-electron/；品牌/端口注入与 release-electron.yml 一致。
+# 沙箱 helper 断言。通道 nuwawork-electron/；品牌/端口注入与 release-electron.yml 一致。
 
 # Electron 桌面客户端 — 预发布版本构建
 # 通过 prerelease-v* tag 触发，构建全平台安装包并创建 GitHub Draft Release，
@@ -30,7 +30,7 @@
 #
 # 产物目录：nuwa-electron-shell/crates/agent-electron-client/release/${version}/（由 package.json directories.output 决定）
 
-name: Release Electron App (Prerelease, nuwa-work)
+name: Release Electron App (Prerelease, NuwaWork)
 
 on:
   push:
@@ -119,7 +119,7 @@ jobs:
 
       # 显式 submodule init（不依赖 checkout action 内部递归 sync）：
       # nuwa-electron-shell submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
-      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwa-work
+      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwawork
       #   分支承载；基座已不含内嵌 nuwax——前端 dist 打包来源=壳根 nuwax/dist）
       - name: Init submodules (nuwa-electron-shell + nuwax)
         shell: bash
@@ -323,7 +323,7 @@ jobs:
           NUWAX_APP_IDENTIFIER: nuwawork
           NUWAX_APP_DISPLAY_NAME: "女娲 Nuwax"
           # 独立更新通道（客户端 autoUpdater 的 OSS_BASE）
-          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwa-work-electron"
+          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwawork-electron"
           # 端口整体 +1000（19099/61002~61009/61173），与社区版/nuwa-cli 同机错开
           NUWAX_PORT_OFFSET: "1000"
         run: |
@@ -378,8 +378,8 @@ jobs:
       OSS_REGION: "rg-china-mainland"
       OSS_BUCKET: "oss://nuwa-packages"
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
-      # 发布通道参数（nuwa-work 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
-      RELEASE_ROOT: "nuwa-work-electron"
+      # 发布通道参数（NuwaWork 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
+      RELEASE_ROOT: "nuwawork-electron"
       PRODUCT_PREFIX: "NuwaWork"
       RELEASE_TAG: ${{ github.ref_name }}
     steps:

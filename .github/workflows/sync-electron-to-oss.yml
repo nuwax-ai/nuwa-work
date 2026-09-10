@@ -1,11 +1,11 @@
-# nuwa-work 商业版 — 仅同步：将指定 tag 的 GitHub Release 资产同步到 MinIO S3 与阿里云 OSS。
+# NuwaWork 商业版 — 仅同步：将指定 tag 的 GitHub Release 资产同步到 MinIO S3 与阿里云 OSS。
 # MinIO：完整资产；OSS：仅元数据（*.yml + latest.json）。与 release-electron.yml 内置
 # sync-to-minio job 同逻辑；供基座内 npm run sync:oss 按 filename dispatch。
-# 通道：nuwa-work-electron/（与社区版 nuwaclaw-electron 隔离）。
+# 通道：nuwawork-electron/（与社区版 nuwaclaw-electron 隔离）。
 #
 # Secrets：GH_PAT（或 repo token）、MINIO_ACCESS_KEY_ID、MINIO_SECRET_ACCESS_KEY、OSS_ACCESS_KEY_ID、OSS_ACCESS_KEY_SECRET
 
-name: Sync Electron Release to MinIO S3 & OSS (nuwa-work)
+name: Sync Electron Release to MinIO S3 & OSS (NuwaWork)
 
 on:
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
       OSS_BUCKET: "oss://nuwa-packages"
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
       # 商业版发布通道（与客户端 NUWAX_UPDATE_FEED_BASE 对应，勿与社区版 nuwaclaw-electron 混用）
-      RELEASE_ROOT: "nuwa-work-electron"
+      RELEASE_ROOT: "nuwawork-electron"
       PRODUCT_PREFIX: "NuwaWork"
       RELEASE_TAG: ${{ inputs.tag }}
       RELEASE_CHANNEL: ${{ inputs.channel || 'stable' }}
