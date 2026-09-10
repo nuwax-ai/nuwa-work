@@ -57,4 +57,5 @@ macOS 为红绿灯({16,16}) + 顶行图标精简、无窗口内菜单（系统�
 1. mac 系统菜单「窗口」补 role `back`/`forward`/`reload`（中文 label）：顶行图标移除后 mac 侧出现页面导航能力缺口，计划仅写明 Win/Linux 收进菜单，实现时同步补齐 mac（main.ts，同一 commit）。
 2. Win/Linux 顶行移除原 nuwax 应用图标（对齐参考图 1 顶行左缘为侧栏开关的布局），未在计划文件清单中单列。
 3. 设置齿轮落位：Win/Linux 放顶行右侧（三键之前）、mac 放左侧 icon 组（红绿灯避让后）——计划只写"保留设置"，落位为实现细化。
-4. 验证补充：mac「帮助→检查更新」实测触发主进程真实更新检查（dev 通道 OSS 404 属预期，链路打通）；Win/Linux 一体化顶行/自绘菜单栏本机无法视觉验证，留 Windows 机/CI 包验收。
+4. 验证补充：mac「帮助→检查更新」实测触发主进程真实更新检查（dev 通道 OSS 404 属预期，链路打通）；Win/Linux 形态已于 2026-09-10 在 win-pc（SSH 远程 Windows 机）实测通过：完整商业链路（overlay 网关+nuwax dist）+ 顶栏/菜单栏/三键/状态点/「还原」标签全部符合。
+5. 样式修正一轮（c18bd59b→5e78b939，用户评审"样式不过关"后对照参考图重做）：顶行 48→36px（对齐 nuwax shellAvoid.TOP=36）；三键换 captionGlyphs 1px 细线 SVG（替代 antd 描边图标）；设置齿轮撤出顶行（Win/Linux 收进「关于(A)」下拉首项，mac 应用菜单新增「设置...」走 menu:settings 事件）；菜单文字 13→12px。同轮发现 mac 窗口菜单 back/forward 无对应 Electron role，改显式 click。
