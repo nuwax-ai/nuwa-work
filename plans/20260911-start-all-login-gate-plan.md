@@ -48,4 +48,4 @@
 
 ## 偏离记录
 
-（实现中偏离原计划的逐条补记：原因 + 同步的 commit）
+- 2026-09-11 晚追加（同 commit 落基座）：冒烟中发现代理服务仍无法由应用自身拉起，对拍定位到**第二根因**——`getSavedKey`（auth.ts:78）在 domain+username 齐备时只查域名级键 `auth.saved_keys.<host>_<username>`（登出已被清）且**不回落全局 `auth.saved_key`**，导致 reg body 带不上 savedKey、后端报「动态认证码或密码不能为空」（curl 对拍实证：带/不带 Bearer 均非问题，savedKey 在 body 即成功）。修复=域名级键未命中时回落全局键（与 setSavedKey 的双写对称）。该修复使 quickInit 种子机（只写全局键）在 username 已存续时同样恢复注册能力。
