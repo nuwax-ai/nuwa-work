@@ -1,10 +1,10 @@
-# Nuwax — 女娲Nuwax 商业版 Electron 客户端（仓库 [nuwa-work](https://github.com/nuwax-ai/nuwa-work)）
+# Nuwax — 女娲Nuwax 商业版 Electron 客户端（仓库 [nuwax-client](https://github.com/nuwax-ai/nuwax-client)）
 
 **Nuwax（女娲Nuwax）是商业产品壳**——功能模块在基座仓 [nuwa-electron-shell](https://github.com/nuwax-ai/nuwa-electron-shell)，
 本仓注入商业身份并发布；本身是干净的 Electron 项目格式（无 Rust / 无 monorepo 包装）：
 
 ```
-nuwa-work/（main = 商业产品壳）
+nuwax-client/（main = 商业产品壳）
 ├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
 │               #   （产品中立功能模块：agent-electron-client + agent-kit + gui-server）
 ├── nuwax/                 # submodule → nuwax 前端（feat-dong.0930，dist 随仓提交；
@@ -35,7 +35,7 @@ nuwaclaw / Nuwax 三方）；本仓差异 = 4 个构建期注入 env（语义见
 | | **Nuwax 客户端**（＝**商业版**；本仓产品） | **nuwax 前端**（仓库 [nuwax-ai/nuwax](https://github.com/nuwax-ai/nuwax)，包名 `nuwax-frontend`） |
 |---|---|---|
 | 是什么 | Electron 桌面应用——「壳」 | React/UMI web 应用——业务 UI 本体 |
-| 仓库 | **本仓 nuwa-work**（基座 submodule + overlay 注入身份） | 同一前端仓的三个落位：独立检出 `workspace/nuwax`（mac dev 用）、壳根 `nuwax/` submodule（CI 打包 pin，feat-dong.0930 线）、线上部署（PC web） |
+| 仓库 | **本仓 nuwax-client**（基座 submodule + overlay 注入身份） | 同一前端仓的三个落位：独立检出 `workspace/nuwax`（mac dev 用）、壳根 `nuwax/` submodule（CI 打包 pin，feat-dong.0930 线）、线上部署（PC web） |
 | 职责 | 窗口/webview 容器 + 桌面能力：登录态桥（token 持久化/起停服务联动）、本地化承载 loopbackGateway、沙箱、文件服务、引擎管理、自动更新 | 工作台/会话/资料库等全部页面逻辑 |
 | 运行形态 | 安装包分发：productName=`Nuwax`、identifier=`nuwax`、appId=`com.nuwax-ai.nuwax`、数据目录 `~/.nuwax` | ① 浏览器直接访问（PC web，无桥自动降级为通用逻辑）；② 客户端窗口内 webview——经壳根 submodule 的 dist 打包为 `resources/nuwax-dist` 本地伺服（本地化加速），或直连线上 |
 | 对外身份 | 注入的 identifier `nuwax` = **宿主产品 id**：`x-client-type` 请求头、桥 `getProduct()` 返回值都表示「请求/页面来自 Nuwax 客户端壳」（后端凭此发登录 token） | 用 `getProduct()`/`isNuwaClaw()` 识别自己跑在哪个宿主（nuwax 客户端 / nuwaclaw 社区壳 / 浏览器），据此开关桌面专属能力或降级 |
@@ -60,7 +60,7 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 ## 本地开发（fresh clone）
 
 ```bash
-git clone https://github.com/nuwax-ai/nuwa-work.git && cd nuwa-work
+git clone https://github.com/nuwax-ai/nuwax-client.git && cd nuwax-client
 git submodule update --init nuwa-electron-shell          # 基座仓 nuwa-electron-shell main 分支（公开）
 git submodule update --init nuwax                        # 壳根 nuwax 前端（dist 随仓提交，无需构建）
 git -C nuwa-electron-shell submodule update --init nuwax # 过渡期：基座内嵌 nuwax（基座瘦身后移除）

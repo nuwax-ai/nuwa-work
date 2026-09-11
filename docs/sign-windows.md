@@ -15,19 +15,19 @@
    export WINDOWS_TIMESTAMP_URL="http://timestamp.sectigo.com"  # 默认值
    ```
 
-3. `gh auth login` 完成 GitHub CLI 登录（需对 `nuwax-ai/nuwa-work` 有 Release 写权限）。
+3. `gh auth login` 完成 GitHub CLI 登录（需对 `nuwax-ai/nuwax-client` 有 Release 写权限）。
 4. 壳仓 clone + submodule 初始化（见 README「本地开发」）；本地运行基座脚本前
    先 `npm run base:install`（会同步 overlay 覆写基座工作树）。
 
 ## 发版流程（每次）
 
-CI 在 nuwa-work 打 `electron-v{v}` tag 后产出**未签名**产物
+CI 在 nuwax-client 打 `electron-v{v}` tag 后产出**未签名**产物
 `Nuwax-Setup-{v}-unsigned.exe`（以及最终名 MSI，不签名）。
 
 ```bash
-cd <nuwa-work 检出>/nuwa-electron-shell/crates/agent-electron-client
+cd <nuwax-client 检出>/nuwa-electron-shell/crates/agent-electron-client
 
-SIGN_RELEASE_REPO=nuwax-ai/nuwa-work \
+SIGN_RELEASE_REPO=nuwax-ai/nuwax-client \
 SIGN_WORK_DIR=/c/tmp/nuwax-sign \
 SIGN_WIN_ARTIFACT_PREFIX="Nuwax" \
 npm run sign:win -- <version>
@@ -47,9 +47,9 @@ npm run sign:win -- <version>
 ## 同步 OSS（stable 须先完成上面签名）
 
 ```bash
-cd <nuwa-work 检出>/nuwa-electron-shell/crates/agent-electron-client
+cd <nuwax-client 检出>/nuwa-electron-shell/crates/agent-electron-client
 
-SYNC_OSS_REPO=nuwax-ai/nuwa-work \
+SYNC_OSS_REPO=nuwax-ai/nuwax-client \
 SYNC_OSS_REF=main \
 npm run sync:oss -- electron-v<version> [stable|beta]
 ```
@@ -67,6 +67,6 @@ npm run sync:oss -- electron-v<version> [stable|beta]
 等价的手动触发方式（不依赖脚本）：
 
 ```bash
-gh workflow run sync-electron-to-oss.yml --repo nuwax-ai/nuwa-work --ref main \
+gh workflow run sync-electron-to-oss.yml --repo nuwax-ai/nuwax-client --ref main \
   -f tag=electron-v<version> -f channel=stable
 ```
