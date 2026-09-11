@@ -156,6 +156,9 @@ jobs:
           # 只出现在 README/发布文案），走 CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
           npm pkg set build.appId="com.nuwax-ai.nuwax"
           npm pkg set build.productName="Nuwax"
+          # 顶层 productName：Electron app.getName() 优先读它——商业版更新调试信息与
+          # 打包 userData 目录名显示 Nuwax 而非内部 scoped 包名（产物命名仍以 build.productName 为准）
+          npm pkg set productName="Nuwax"
           # 基座 mac.extendInfo 的 CFBundleName/DisplayName 是社区版展示名（女娲 Nuwax，
           # 带空格），商业构建覆写为 Nuwax（与 UA/关于一致）；CFBundleIdentifier 删除以与 appId 统一
           npm pkg set build.mac.extendInfo.CFBundleName="Nuwax"
