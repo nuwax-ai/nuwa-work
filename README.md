@@ -8,7 +8,8 @@ nuwa-work/（main = 商业产品壳）
 ├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
 │               #   （产品中立功能模块：agent-electron-client + agent-kit + gui-server）
 ├── nuwax/                 # submodule → nuwax 前端（feat-dong.0930，dist 随仓提交；
-│               #   商业前端 pin，pin/nuwawork 分支承载——基座瘦身后 dist 唯一来源）
+│               #   商业前端 pin，pin/nuwawork 分支承载——基座瘦身后 dist 唯一来源；
+│               #   与线上 PC web 同源同仓，术语区分见下节）
 ├── overlay/               # 商业自有代码（整文件覆写进基座工作树，见下「overlay/」）
 ├── scripts/               # in-base.js（基座内执行+商业 env 注入）+ sync-overlay.js
 ├── .github/workflows/     # 发布编排（release / sync，构建在基座内执行）
@@ -26,6 +27,20 @@ nuwaclaw / Nuwax 三方）；本仓差异 = 4 个构建期注入 env（语义见
 > 本仓 overlay/，基座回归产品中立；壳↔nuwax 通信桥已支持宿主身份区分
 > （x-client-type 与桥 host.getProduct() 随注入标识派生）。
 ```
+
+## 术语区分：Nuwax 客户端 vs nuwax 前端（同名不同物）
+
+品牌统一后两者都叫 "nuwax"，但指代完全不同的东西，读代码/沟通时按下表区分：
+
+| | **Nuwax 客户端**（＝**商业版**；本仓产品） | **nuwax 前端**（仓库 [nuwax-ai/nuwax](https://github.com/nuwax-ai/nuwax)，包名 `nuwax-frontend`） |
+|---|---|---|
+| 是什么 | Electron 桌面应用——「壳」 | React/UMI web 应用——业务 UI 本体 |
+| 仓库 | **本仓 nuwa-work**（基座 submodule + overlay 注入身份） | 同一前端仓的三个落位：独立检出 `workspace/nuwax`（mac dev 用）、壳根 `nuwax/` submodule（CI 打包 pin，feat-dong.0930 线）、线上部署（PC web） |
+| 职责 | 窗口/webview 容器 + 桌面能力：登录态桥（token 持久化/起停服务联动）、本地化承载 loopbackGateway、沙箱、文件服务、引擎管理、自动更新 | 工作台/会话/资料库等全部页面逻辑 |
+| 运行形态 | 安装包分发：productName=`Nuwax`、identifier=`nuwax`、appId=`com.nuwax-ai.nuwax`、数据目录 `~/.nuwax` | ① 浏览器直接访问（PC web，无桥自动降级为通用逻辑）；② 客户端窗口内 webview——经壳根 submodule 的 dist 打包为 `resources/nuwax-dist` 本地伺服（本地化加速），或直连线上 |
+| 对外身份 | 注入的 identifier `nuwax` = **宿主产品 id**：`x-client-type` 请求头、桥 `getProduct()` 返回值都表示「请求/页面来自 Nuwax 客户端壳」（后端凭此发登录 token） | 用 `getProduct()`/`isNuwaClaw()` 识别自己跑在哪个宿主（nuwax 客户端 / nuwaclaw 社区壳 / 浏览器），据此开关桌面专属能力或降级 |
+
+速记：**「Nuwax 客户端」在文档与对话中也称「商业版」**（相对社区版 NuwaClaw；下文「与社区版的隔离」等处的「商业版」均指它）。代码与请求里作为宿主标识出现的 `nuwax`（x-client-type / HostProductId / getProduct）指的是「Nuwax 客户端这个宿主」；作为仓库名/包名/路径/分支出现的 `nuwax` 指的是前端项目。社区语境的 `nuwaclaw` 同理指社区版宿主。
 
 ## 与社区版 / nuwa-cli 的隔离（同机双开互不干扰）
 
