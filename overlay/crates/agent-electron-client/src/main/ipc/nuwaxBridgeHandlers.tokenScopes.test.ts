@@ -47,6 +47,24 @@ vi.mock("../db", () => ({
   writeSetting: (key: string, value: unknown) => {
     settings.set(key, value);
   },
+  // clearShellAuthState 的 savedKey 前缀批删走 getDb()；测试环境用内存 Map 模拟
+  getDb: () => ({
+    prepare: (sql: string) => ({
+      run: () => {
+        if (sql.includes("auth.saved_keys.%")) {
+          let changes = 0;
+          for (const key of [...settings.keys()]) {
+            if (key.startsWith("auth.saved_keys.")) {
+              settings.delete(key);
+              changes++;
+            }
+          }
+          return { changes };
+        }
+        return { changes: 0 };
+      },
+    }),
+  }),
 }));
 
 vi.mock("./processHandlers", () => ({
@@ -118,5 +136,81 @@ describe("token 键空间统一（网关形态）", () => {
     // 清后再取：回退链无键可复活
     const again = await handlers.get("auth:getToken")!(senderEvent(GW_ORIGIN));
     expect(again).toBeNull();
+  });
+
+  it("clear：同步清壳侧登录态键（savedKey 派生缓存 + saved_keys.* 前缀批删）", async () => {
+    settings.set("auth.saved_key", "sk");
+    settings.set("auth.config_key", "ck");
+    settings.set("auth.username", "user1");
+    settings.set("auth.user_info", { username: "user1" });
+    settings.set("auth.saved_keys.example.com_user1", "sk1");
+    settings.set("auth.saved_keys.example.com_user2", "sk2");
+    await handlers.get("auth:clear")!(senderEvent(GW_ORIGIN));
+    expect(settings.get("auth.saved_key")).toBeNull();
+    expect(settings.get("auth.config_key")).toBeNull();
+    expect(settings.get("auth.username")).toBeNull();
+    expect(settings.get("auth.user_info")).toBeNull();
+    expect(settings.get("auth.saved_keys.example.com_user1")).toBeUndefined();
+    expect(settings.get("auth.saved_keys.example.com_user2")).toBeUndefined();
+  });
+});
+
+describe("configureServerHost（企业登录切换域名）", () => {
+  it("合法域名 → 写 step1_config.serverHost（保留其余字段）并广播重载事件", async () => {
+    const sent: [string, unknown][] = [];
+    mainWindowSender = (c, p) => sent.push([c, p]);
+
+    const res = (await handlers.get("auth:configureServerHost")!(
+      undefined,
+      "biz.example.com",
+    )) as { success: boolean; serverHost?: string };
+
+    expect(res.success).toBe(true);
+    expect(res.serverHost).toBe("https://biz.example.com");
+    const step1 = settings.get("step1_config") as Record<string, unknown>;
+    expect(step1.serverHost).toBe("https://biz.example.com");
+    expect(sent.some(([c]) => c === "nuwax:serverHostChanged")).toBe(true);
+  });
+
+  it("非法输入 → 失败返回且不写配置", async () => {
+    const before = settings.get("step1_config");
+    const empty = (await handlers.get("auth:configureServerHost")!(
+      undefined,
+      "   ",
+    )) as { success: boolean };
+    const bad = (await handlers.get("auth:configureServerHost")!(
+      undefined,
+      "ht tp://bad domain",
+    )) as { success: boolean };
+    expect(empty.success).toBe(false);
+    expect(bad.success).toBe(false);
+    expect(settings.get("step1_config")).toEqual(before);
+  });
+});
+
+describe("语言同步（webview 多语言 → 壳）", () => {
+  it("nuwax:lang-sync → 转发 nuwax:lang-changed 给壳 renderer", () => {
+    const sent: [string, unknown][] = [];
+    mainWindowSender = (c, p) => sent.push([c, p]);
+
+    const emit = emitters.get("nuwax:lang-sync")?.[0];
+    expect(emit).toBeDefined();
+    emit!(undefined, { lang: "en-US" });
+
+    const changed = sent.find(([c]) => c === "nuwax:lang-changed");
+    expect(changed).toBeDefined();
+    expect(changed![1]).toEqual({ lang: "en-US" });
+  });
+
+  it("非法/空语言 → 不转发", () => {
+    const sent: [string, unknown][] = [];
+    mainWindowSender = (c, p) => sent.push([c, p]);
+
+    const emit = emitters.get("nuwax:lang-sync")?.[0];
+    emit!(undefined, { lang: "   " });
+    emit!(undefined, { lang: 123 });
+    emit!(undefined, null);
+
+    expect(sent.some(([c]) => c === "nuwax:lang-changed")).toBe(false);
   });
 });

@@ -29,7 +29,7 @@ import * as fs from "fs";
 import * as path from "path";
 import log from "electron-log";
 import type { HandlerContext } from "@shared/types/ipc";
-import { readSetting, writeSetting } from "../db";
+import { readSetting, writeSetting, getDb } from "../db";
 import {
   stopAllServicesNow,
   restartAllServicesNow,
@@ -51,6 +51,31 @@ function resolveSenderOrigin(event: IpcMainInvokeEvent): string {
 
 function tokenKey(scope: string): string {
   return `${NUWAX_TOKEN_KEY_PREFIX}${scope}`;
+}
+
+/**
+ * 清壳侧登录态键（登录态以 webview 为准，登出即全清）：定点键置 null（=
+ * writeSetting 语义里的删除），域名级 savedKey 前缀键经 SQL 批删。savedKey/
+ * configKey 是 reg 响应的派生缓存（lanproxy clientKey），不属于独立登录态。
+ */
+function clearShellAuthState(): void {
+  const directKeys = [
+    "auth.saved_key",
+    "auth.config_key",
+    "auth.username",
+    "auth.user_info",
+    "auth.online_status",
+    "auth.token",
+    "auth.password",
+  ];
+  for (const key of directKeys) writeSetting(key, null);
+  const db = getDb();
+  if (db) {
+    const info = db
+      .prepare("DELETE FROM settings WHERE key LIKE 'auth.saved_keys.%'")
+      .run();
+    log.info("[NuwaxBridge] cleared auth.saved_keys.* rows:", info.changes);
+  }
 }
 
 /**
@@ -113,6 +138,22 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
         : null;
     if (!safe || typeof safe.active !== "boolean") return;
     ctx.getMainWindow()?.webContents.send("nuwax:theme-changed", safe);
+  });
+
+  // ---- i18n：nuwax 语言变化 → 壳（UI 文案/主进程语言跟随） ----
+  // nuwax 切换多语言（登录页语言开关/设置页/登录后用户资料同步）时推送当前语言，
+  // 转发给壳 renderer 走与设置页同链路的应用（setCurrentLang+预拉翻译+主进程同步），
+  // 不整窗 reload（避免连带重载 webview 丢会话态）。fire-and-forget。
+  ipcMain.on("nuwax:lang-sync", (_event, payload: unknown) => {
+    const safe =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>)
+        : null;
+    const lang =
+      safe && typeof safe.lang === "string" ? safe.lang.trim() : "";
+    if (!lang) return;
+    log.info("[NuwaxBridge] lang-sync", { lang });
+    ctx.getMainWindow()?.webContents.send("nuwax:lang-changed", { lang });
   });
 
   // ---- layout：nuwax 布局状态 → 壳（工具栏收起按钮显隐/icon 态） ----
@@ -187,18 +228,15 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     for (const s of scopes) writeSetting(tokenKey(s), token);
     log.info("[NuwaxBridge] auth:persistToken saved", { scopes });
 
-    // 登录成功联动：best-effort 启动本地服务。仅在「当前无核心服务运行」时触发，
-    // 避免已登录态下（如 token 刷新）重复 restart 打断在跑的会话。
-    // 异步触发、不阻塞 persistToken 返回，保持 nuwax 登录即时跳转。
-    // lanproxy 完整自起待 Phase 3 后端 reg 支持 token 鉴权后实现。
-    if (!isAnyCoreServiceRunning()) {
-      log.info("[NuwaxBridge] login → starting services (best-effort)");
-      void restartAllServicesNow().catch((e) => {
-        log.warn("[NuwaxBridge] login service start failed (ignored):", e);
-      });
-    } else {
-      log.info("[NuwaxBridge] login → services already running, skip restart");
-    }
+    // 登录成功联动：通知 renderer 走「reg → 同步 → 重启服务」链路（与设置页重启
+    // 同一条 restartAllServices 路径）：reg 刷新服务端注册条目（端口/在线态），
+    // restartAll 使 lanproxy 等按新注册生效。persistToken 只在 /Login 登录成功时
+    // 触发（后台 token 刷新不走此 IPC），不存在「重复 restart 打断在跑会话」的
+    // 场景；此前「服务在跑即跳过」导致登录后注册态永不同步（壳侧无 reg，服务端
+    // 遗留旧条目）。无 savedKey（全新客户端首登）时 syncConfigToServer 自然跳过，
+    // 仅重启本地服务——首次注册待 Phase 3 后端 reg 支持 token 鉴权后补齐。
+    ctx.getMainWindow()?.webContents.send("nuwax:login-confirmed", {});
+    log.info("[NuwaxBridge] login → renderer login-confirmed (reg+sync+restart)");
 
     // 顶栏账号状态联动：登录成功 → 通知 renderer 顶栏切「已登录」态（跟随 nuwax token，
     // 而非 nuwaclaw 原生 configKey）。Phase 3 configKey 退役前，顶栏以此事件为准。
@@ -216,6 +254,10 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     for (const s of scopes) writeSetting(tokenKey(s), null);
     log.info("[NuwaxBridge] auth:clear", { scopes });
 
+    // 登录态以 webview 为准：登出即清壳侧全部登录态/派生凭证（savedKey 是 reg
+    // 响应的派生缓存，供 lanproxy clientKey；全清避免残留导致「伪已登录」与跨账号串用）。
+    clearShellAuthState();
+
     // 登出 / token 失效（401）联动：停止全部本地服务。
     // 用户定：登出与失效都停服务。await 以确保重定向回 /Login 前服务确停；
     // stopAllServicesNow 内部对各进程有超时，整体有界，失败仅 warn 不影响 clear 结果。
@@ -230,6 +272,57 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
       loggedIn: false,
     });
     return true;
+  });
+
+  // ---- auth：企业登录（切换后端域名，客户端重新初始化） ----
+  // 登录页「企业登录」入口调用：归一化并写入 step1_config.serverHost（业务域
+  // 唯一事实源），立即停止全部本地服务（重新初始化语义——在跑的 lanproxy 等
+  // 仍连旧域名，留着只会错乱），刷新回环网关（gateway 形态反代目标随域重指），
+  // 并通知 renderer 重解析 webview URL（direct 形态即加载新域名的 /Login）。
+  // 切换后 webview 在新域无 token → 登录页；登录成功经 persistToken →
+  // nuwax:login-confirmed → reg+重启服务，完成向新域的重新初始化。
+  ipcMain.handle("auth:configureServerHost", (_event, input: unknown) => {
+    const raw =
+      typeof input === "string" ? input.trim().replace(/\/+$/, "") : "";
+    if (!raw) return { success: false, error: "empty domain" };
+    const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+      ? raw
+      : `https://${raw}`;
+    let origin: string;
+    try {
+      const url = new URL(candidate);
+      if (!/^https?:$/.test(url.protocol)) {
+        return { success: false, error: "only http(s) allowed" };
+      }
+      origin = url.origin;
+    } catch {
+      return { success: false, error: "invalid domain" };
+    }
+
+    const prev = readSetting("step1_config") as Record<
+      string,
+      unknown
+    > | null;
+    writeSetting("step1_config", { ...(prev ?? {}), serverHost: origin });
+    log.info("[NuwaxBridge] configureServerHost", {
+      from: (prev?.serverHost as string) ?? null,
+      to: origin,
+    });
+
+    // 立即停服 + 网关重指（异步 best-effort，不阻塞返回；webview 随事件重载）
+    void stopAllServicesNow().catch((e) =>
+      log.warn("[NuwaxBridge] domain switch stop services failed (ignored):", e),
+    );
+    void import("../services/loopbackGateway")
+      .then(({ refreshLoopbackGateway }) => refreshLoopbackGateway())
+      .catch((e) =>
+        log.warn("[NuwaxBridge] domain switch gateway refresh failed (ignored):", e),
+      );
+
+    ctx
+      .getMainWindow()
+      ?.webContents.send("nuwax:serverHostChanged", { serverHost: origin });
+    return { success: true, serverHost: origin };
   });
 
   // ---- native：新开独立窗口打开 nuwax 页面 ----
