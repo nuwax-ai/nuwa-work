@@ -7,12 +7,13 @@
  * 1. 新目录不存在 → 整体 rename 旧目录
  * 2. 新目录已存在但 DB 为空（依赖安装等先创建了目录）→ 从旧目录复制 DB
  *
- * overlay 商业版（Nuwax）：**不迁移任何历史数据目录，全新开始**——
- * LEGACY_SOURCES 置空（2026-09-11 改名 nuwawork→nuwax 决策：不迁移老
- * nuwaclaw 应用数据及登录状态；.nuwawork beta 数据同样弃置）。尤其要阻断
- * 基座默认行为「identifier≠nuwaclaw 时整体 rename ~/.nuwaclaw」，避免
- * 劫走同机社区版数据。此文件是对基座的有意行为性覆写（非严格超集），
- * bump 基座 pin 后必须 overlay:check 核对本文件与基座侧演进差异。
+ * overlay 商业版（Nuwax）：**从迁移链移除 .nuwaclaw**（2026-09-11 改名
+ * nuwawork→nuwax 决策：不迁移老 nuwaclaw 应用数据及登录状态，阻断基座默认
+ * 的「identifier≠nuwaclaw 时整体 rename ~/.nuwaclaw」劫持同机社区版数据；
+ * .nuwawork beta 数据同样不在链中、弃置）。.nuwax-agent/.nuwaxbot 远古产品
+ * 目录沿用基座迁移链，保持与基座社区测试（migrate.test.ts）同步态自洽。
+ * 此文件是对基座的有意行为性覆写（非严格超集），bump 基座 pin 后必须
+ * overlay:check 核对本文件与基座侧演进差异。
  */
 
 import * as fs from "fs";
@@ -29,9 +30,13 @@ interface LegacySource {
   configName: string | null;
 }
 
-// 商业版不迁移任何历史目录（.nuwaclaw / .nuwax-agent / .nuwaxbot / .nuwawork
-// 均不进链）：新版数据目录 ~/.nuwax 全新开始，同机社区版数据不受影响。
-const LEGACY_SOURCES: LegacySource[] = [];
+// 商业版仅从迁移链移除 .nuwaclaw（不动同机社区版数据、不迁移老登录态）；
+// .nuwawork 不在链中（beta 数据弃置，~/.nuwax 全新开始）；
+// .nuwax-agent/.nuwaxbot 远古目录沿用基座迁移链（同步态社区测试自洽）。
+const LEGACY_SOURCES: LegacySource[] = [
+  { dirName: ".nuwax-agent", dbName: "nuwax-agent.db", configName: null },
+  { dirName: ".nuwaxbot", dbName: "nuwaxbot.db", configName: "nuwaxbot.json" },
+];
 
 // 社区版默认端口（历史固定值）：商业版迁移 quickInit 配置时，恰好等于这些
 // 默认值的端口改写为「默认 + NUWAX_PORT_OFFSET」，避免与同机社区版/nuwa-cli 撞端口；

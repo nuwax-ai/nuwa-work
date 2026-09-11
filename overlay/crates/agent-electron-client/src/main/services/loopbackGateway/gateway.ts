@@ -375,7 +375,7 @@ export async function startLoopbackGateway(
   const target = new URL(opts.targetOrigin);
   const ctx: ProxyContext = {
     getAccessToken: opts.getAccessToken,
-    // 缺省跟随构建期注入的产品标识（nuwaclaw=社区版 / nuwawork=商业版）
+    // 缺省跟随构建期注入的产品标识（nuwaclaw=社区版 / nuwax=商业版，2026-09 前为 nuwawork）
     clientTypeHeader: opts.clientTypeHeader ?? APP_NAME_IDENTIFIER,
   };
   const DEFAULT_BACKEND_PREFIXES = ["/api", "/computer", "/devcomputer"];

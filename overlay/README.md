@@ -1,6 +1,6 @@
 # overlay/ —— 商业自有代码（文件覆写机制）
 
-商业专属实现不进基座仓（基座产品中立，服务 nuwa-cli / nuwaclaw / NuwaWork 三方），
+商业专属实现不进基座仓（基座产品中立，服务 nuwa-cli / nuwaclaw / Nuwax 三方），
 以**整文件覆写**方式注入基座构建：
 
 - 目录结构 = 基座仓相对路径：`overlay/crates/agent-electron-client/src/...`
@@ -17,7 +17,7 @@
 
 只放商业专属实现的整文件；基座若为商业功能开插槽（可选注册/扩展点），优先用插槽
 而不是大文件覆写，控制升级冲突面。bump 基座 pin 后必须跑 `npm run overlay:check`
-核对差异。当前覆写清单（8 文件）：
+核对差异。当前覆写清单（9 文件）：
 
 | overlay 文件（基座同路径） | 内容 |
 |---|---|
@@ -27,8 +27,10 @@
 | `src/main/ipc/nuwaxBridgeHandlers.ts` | 基座中立桥的**超集**：补回 auth 命名空间（token 按 origin 持久化 `nuwax.accessToken.<origin>`、跨 origin 回退链、登录起服务/登出停服务联动、顶栏登录态事件） |
 | `src/main/ipc/nuwaxBridgeHandlers.tokenScopes.test.ts` | token 键空间统一测试 |
 | `src/renderer/components/pages/SettingsPage.tsx` | 基座剥离版的**超集**：补回「本地化加速」区块（nuwaxLoadMode 开关 + 保存重启联动） |
-| `src/main/bootstrap/migrate.ts` | **有意行为性覆写（非超集）**：`LEGACY_SOURCES` 置空，阻断基座默认的 `~/.nuwaclaw` 首启整体迁移——商业版（identifier=nuwax）数据目录全新开始，不迁移任何历史数据（2026-09-11 改名决策） |
+| `src/main/bootstrap/migrate.ts` | **有意行为性覆写（非超集）**：从迁移链移除 `.nuwaclaw`，阻断基座默认的 `~/.nuwaclaw` 首启整体迁移——商业版（identifier=nuwax）不动同机社区版数据、不迁移老 nuwaclaw 登录态（2026-09-11 改名决策）；`.nuwax-agent/.nuwaxbot` 远古目录沿用基座链，社区测试同步态自洽 |
+| `src/main/bootstrap/migrate.commercial.test.ts` | migrate.ts 的配套测试：断言 nuwax 标识派生 + 不迁移语义（基座版测的是基座迁移行为，随 overlay 同步须一并覆写保持同步态自洽） |
 
 维护规则：基座对应文件演进时，先 `overlay:check` 看 diff，把基座侧改动手工
-合入 overlay 版本（overlay 版本必须始终是基座版本的严格超集；唯一例外是
-`migrate.ts`——它是刻意的行为性覆写，合入基座演进时须保留「迁移链置空」语义）。
+合入 overlay 版本（overlay 版本必须始终是基座版本的严格超集；例外是
+`migrate.ts` 及其配套 commercial 测试——行为性覆写，合入基座演进时须保留
+「迁移链置空」语义）。

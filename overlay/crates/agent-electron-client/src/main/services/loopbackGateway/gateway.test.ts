@@ -185,7 +185,7 @@ describe("loopback gateway（透明反代）", () => {
     gateways.push(gw1);
     await fetch(`${gw1.origin}/a`);
     // 测试环境未注入 NUWAX_APP_IDENTIFIER → 社区版缺省 nuwaclaw；
-    // 商业版构建（nuwawork）时该头值随 define 联动，无需改本测试
+    // 商业版构建（identifier=nuwax）时该头值随 define 联动，无需改本测试
     expect(up.captured.xct).toBe(APP_NAME_IDENTIFIER);
 
     const gw2 = await startLoopbackGateway({
