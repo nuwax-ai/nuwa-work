@@ -17,7 +17,7 @@
 
 只放商业专属实现的整文件；基座若为商业功能开插槽（可选注册/扩展点），优先用插槽
 而不是大文件覆写，控制升级冲突面。bump 基座 pin 后必须跑 `npm run overlay:check`
-核对差异。当前覆写清单（7 文件）：
+核对差异。当前覆写清单（8 文件）：
 
 | overlay 文件（基座同路径） | 内容 |
 |---|---|
@@ -27,6 +27,8 @@
 | `src/main/ipc/nuwaxBridgeHandlers.ts` | 基座中立桥的**超集**：补回 auth 命名空间（token 按 origin 持久化 `nuwax.accessToken.<origin>`、跨 origin 回退链、登录起服务/登出停服务联动、顶栏登录态事件） |
 | `src/main/ipc/nuwaxBridgeHandlers.tokenScopes.test.ts` | token 键空间统一测试 |
 | `src/renderer/components/pages/SettingsPage.tsx` | 基座剥离版的**超集**：补回「本地化加速」区块（nuwaxLoadMode 开关 + 保存重启联动） |
+| `src/main/bootstrap/migrate.ts` | **有意行为性覆写（非超集）**：`LEGACY_SOURCES` 置空，阻断基座默认的 `~/.nuwaclaw` 首启整体迁移——商业版（identifier=nuwax）数据目录全新开始，不迁移任何历史数据（2026-09-11 改名决策） |
 
 维护规则：基座对应文件演进时，先 `overlay:check` 看 diff，把基座侧改动手工
-合入 overlay 版本（overlay 版本必须始终是基座版本的严格超集）。
+合入 overlay 版本（overlay 版本必须始终是基座版本的严格超集；唯一例外是
+`migrate.ts`——它是刻意的行为性覆写，合入基座演进时须保留「迁移链置空」语义）。

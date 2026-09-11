@@ -1,7 +1,7 @@
-# NuwaWork 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
+# Nuwax 商业版 — beta 预发布（prerelease-v* 触发，Draft Release）
 # 商业产品壳（基座仓 nuwax-ai/nuwa-electron-shell main 分支承载业务）：
 # 路径前缀 nucaclaw/、checkout 后以 github.token 拉基座 submodule、pnpm 显式版本、
-# 沙箱 helper 断言。通道 nuwawork-electron/；品牌/端口注入与 release-electron.yml 一致。
+# 沙箱 helper 断言。通道 nuwax-electron/；品牌/端口注入与 release-electron.yml 一致。
 
 # Electron 桌面客户端 — 预发布版本构建
 # 通过 prerelease-v* tag 触发，构建全平台安装包并创建 GitHub Draft Release，
@@ -30,7 +30,7 @@
 #
 # 产物目录：nuwa-electron-shell/crates/agent-electron-client/release/${version}/（由 package.json directories.output 决定）
 
-name: Release Electron App (Prerelease, NuwaWork)
+name: Release Electron App (Prerelease, Nuwax)
 
 on:
   push:
@@ -67,7 +67,7 @@ jobs:
             echo "Using release notes from $NOTES_FILE"
             cp "$NOTES_FILE" release_notes.txt
           else
-            echo "女娲 Nuwax ${VERSION} (Prerelease)。请在 Assets 中下载对应平台安装包。" > release_notes.txt
+            echo "女娲Nuwax ${VERSION} (Prerelease)。请在 Assets 中下载对应平台安装包。" > release_notes.txt
           fi
 
       - name: Create GitHub Release
@@ -79,7 +79,7 @@ jobs:
             echo "Release $TAG already exists"
           else
             gh release create "$TAG" \
-              --title "女娲 Nuwax (Electron) ${{ steps.version.outputs.version }} - Prerelease" \
+              --title "女娲Nuwax (Electron) ${{ steps.version.outputs.version }} - Prerelease" \
               --notes-file release_notes.txt \
               --draft \
               --prerelease \
@@ -150,12 +150,19 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           npm pkg set version="$VERSION"
-          # 商业身份：文件名/包名一律 ASCII（productName=NuwaWork；appId 尾段与
-          # 注入 identifier 一致=nuwawork）；展示文案（女娲 Nuwax）走
+          # 商业身份：文件名/包名一律 ASCII（productName=Nuwax；appId 尾段与
+          # 注入 identifier 一致=nuwax）；展示文案（女娲Nuwax）走
           # CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
-          npm pkg set build.appId="com.nuwax-ai.nuwawork"
-          npm pkg set build.productName="NuwaWork"
+          npm pkg set build.appId="com.nuwax-ai.nuwax"
+          npm pkg set build.productName="Nuwax"
+          # 基座 mac.extendInfo 的 CFBundleName/DisplayName 是社区版展示名（女娲 Nuwax，
+          # 带空格），商业构建覆写为新展示名；CFBundleIdentifier 删除以与 appId 统一
+          npm pkg set build.mac.extendInfo.CFBundleName="女娲Nuwax"
+          npm pkg set build.mac.extendInfo.CFBundleDisplayName="女娲Nuwax"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
+          # linux 安装包内部包名（基座默认为社区标识 nuwaclaw）
+          npm pkg set build.deb.packageName="nuwax"
+          npm pkg set build.rpm.packageName="nuwax"
           # 前端 dist 打包来源（基座已中立化移除该条目）：壳根 nuwax/dist →
           # resources/nuwax-dist（dev 形态运行时经 NUWAX_FRONTEND_DIST env 解析）
           node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.build.extraResources=(j.build.extraResources||[]).filter(e=>!(e.from&&e.from.includes('nuwax/dist'))).concat([{from:'../../../nuwax/dist',to:'nuwax-dist'}]);fs.writeFileSync(p,JSON.stringify(j,null,2));"
@@ -319,11 +326,11 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
           SKIP_PREPARE: "1"
           # 商业版品牌注入（构建期经 esbuild/vite define 固化）：
-          # identifier=nuwawork → 数据目录 ~/.nuwawork（首启自动迁移既有 ~/.nuwaclaw）
-          NUWAX_APP_IDENTIFIER: nuwawork
-          NUWAX_APP_DISPLAY_NAME: "女娲 Nuwax"
+          # identifier=nuwax → 数据目录 ~/.nuwax（迁移链已被 overlay 阻断，全新开始）
+          NUWAX_APP_IDENTIFIER: nuwax
+          NUWAX_APP_DISPLAY_NAME: "女娲Nuwax"
           # 独立更新通道（客户端 autoUpdater 的 OSS_BASE）
-          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwawork-electron"
+          NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwax-electron"
           # 端口整体 +1000（19099/61002~61009/61173），与社区版/nuwa-cli 同机错开
           NUWAX_PORT_OFFSET: "1000"
         run: |
@@ -378,9 +385,9 @@ jobs:
       OSS_REGION: "rg-china-mainland"
       OSS_BUCKET: "oss://nuwa-packages"
       OSS_CDN_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com"
-      # 发布通道参数（NuwaWork 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
-      RELEASE_ROOT: "nuwawork-electron"
-      PRODUCT_PREFIX: "NuwaWork"
+      # 发布通道参数（Nuwax 商业版复制本 workflow 时须整组覆盖，实现更新通道隔离）
+      RELEASE_ROOT: "nuwax-electron"
+      PRODUCT_PREFIX: "Nuwax"
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - name: Ensure awscli v2 (for S3)
@@ -444,7 +451,7 @@ jobs:
 
           # 获取 release notes 与 pub_date
           RELEASE_JSON=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body,createdAt 2>/dev/null || echo '{}')
-          NOTES=$(echo "$RELEASE_JSON" | jq -r '.body // "女娲 Nuwax 功能优化和问题修复。建议更新到最新版本以获得更好的体验。"' | head -c 500)
+          NOTES=$(echo "$RELEASE_JSON" | jq -r '.body // "女娲Nuwax 功能优化和问题修复。建议更新到最新版本以获得更好的体验。"' | head -c 500)
           PUB_DATE=$(echo "$RELEASE_JSON" | jq -r '.createdAt // empty')
           if [ -z "$PUB_DATE" ]; then
             PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
