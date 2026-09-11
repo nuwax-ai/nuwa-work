@@ -32,7 +32,7 @@ nuwaclaw / Nuwax 三方）；本仓差异 = 4 个构建期注入 env（语义见
 | 维度 | 社区版 nuwaclaw | 商业版 Nuwax（本仓） |
 |---|---|---|
 | appId / bundle id | com.nuwax-ai.nuwaclaw | **com.nuwax-ai.nuwax**（CI 构建时 npm pkg set，尾段与注入 identifier 一致） |
-| 产物名前缀 | NuwaClaw | **Nuwax**（ASCII；展示文案 女娲Nuwax，走 CFBundleDisplayName/APP_DISPLAY_NAME） |
+| 产物名前缀 | NuwaClaw | **Nuwax**（客户端展示名同为 ASCII Nuwax：UA token=Nuwax/\<ver\>、设置「关于」、CFBundleDisplayName；营销名 女娲Nuwax 只在 README 与发布文案） |
 | 数据目录 | ~/.nuwaclaw | **~/.nuwax**（历史目录迁移链已被 overlay 覆写 migrate.ts 阻断，全新开始、不动 ~/.nuwaclaw） |
 | 默认端口 | 18099 / 60002~60009 / 60173 | **整体 +1000**：19099 / 61002~61009 / 61173（`NUWAX_PORT_OFFSET=1000` 构建期注入；nuwa-cli 占 60015/60016/10076，三方错开） |
 | 更新通道（OSS/MinIO） | nuwaclaw-electron/ | **nuwax-electron/** |

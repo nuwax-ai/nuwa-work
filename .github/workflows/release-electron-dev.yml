@@ -151,14 +151,15 @@ jobs:
           VERSION="${{ needs.prepare.outputs.version }}"
           npm pkg set version="$VERSION"
           # 商业身份：文件名/包名一律 ASCII（productName=Nuwax；appId 尾段与
-          # 注入 identifier 一致=nuwax）；展示文案（女娲Nuwax）走
-          # CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
+          # 注入 identifier 一致=nuwax）；客户端展示名同为 ASCII Nuwax
+          # （UA token=Nuwax/<ver>、设置「关于」等；女娲Nuwax 为营销名，
+          # 只出现在 README/发布文案），走 CFBundleDisplayName 与运行时 APP_DISPLAY_NAME
           npm pkg set build.appId="com.nuwax-ai.nuwax"
           npm pkg set build.productName="Nuwax"
           # 基座 mac.extendInfo 的 CFBundleName/DisplayName 是社区版展示名（女娲 Nuwax，
-          # 带空格），商业构建覆写为新展示名；CFBundleIdentifier 删除以与 appId 统一
-          npm pkg set build.mac.extendInfo.CFBundleName="女娲Nuwax"
-          npm pkg set build.mac.extendInfo.CFBundleDisplayName="女娲Nuwax"
+          # 带空格），商业构建覆写为 Nuwax（与 UA/关于一致）；CFBundleIdentifier 删除以与 appId 统一
+          npm pkg set build.mac.extendInfo.CFBundleName="Nuwax"
+          npm pkg set build.mac.extendInfo.CFBundleDisplayName="Nuwax"
           npm pkg delete build.mac.extendInfo.CFBundleIdentifier || true
           # linux 安装包内部包名（基座默认为社区标识 nuwaclaw）
           npm pkg set build.deb.packageName="nuwax"
@@ -328,7 +329,7 @@ jobs:
           # 商业版品牌注入（构建期经 esbuild/vite define 固化）：
           # identifier=nuwax → 数据目录 ~/.nuwax（迁移链已被 overlay 阻断，全新开始）
           NUWAX_APP_IDENTIFIER: nuwax
-          NUWAX_APP_DISPLAY_NAME: "女娲Nuwax"
+          NUWAX_APP_DISPLAY_NAME: "Nuwax"
           # 独立更新通道（客户端 autoUpdater 的 OSS_BASE）
           NUWAX_UPDATE_FEED_BASE: "https://nuwa-packages.oss-rg-china-mainland.aliyuncs.com/nuwax-electron"
           # 端口整体 +1000（19099/61002~61009/61173），与社区版/nuwa-cli 同机错开
