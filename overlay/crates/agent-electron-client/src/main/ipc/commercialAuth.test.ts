@@ -45,10 +45,12 @@ describe("commercial registration protocol", () => {
     });
     expect(mocks.settings.get("auth.saved_key")).toBeNull();
   });
-  it("device identity upgrade clears registration but preserves web login", () => {
+  it("device identity upgrade clears registration but preserves web login + savedKey", () => {
     mocks.settings.set("step1_config", { serverHost: origin });
     mocks.settings.set(`nuwax.accessToken.${origin}`, "web-token");
     mocks.settings.set("auth.saved_key", "old-device-key");
+    mocks.settings.set("auth.config_key", "old-config");
+    mocks.settings.set("auth.saved_keys.old.example_user", "domain-key");
     mocks.settings.set("lanproxy_config", {
       serverIp: "old",
       serverPort: 123,
@@ -56,8 +58,15 @@ describe("commercial registration protocol", () => {
     });
     fixture();
     expect(mocks.settings.get(`nuwax.accessToken.${origin}`)).toBe("web-token");
-    expect(mocks.settings.get("auth.saved_key")).toBeNull();
+    // savedKey 是唯一能重新注册的凭据（后端必查；实测接受旧 savedKey+新
+    // deviceId）——盐变更迁移时保留，否则存量用户升级后永远无法注册。
+    expect(mocks.settings.get("auth.saved_key")).toBe("old-device-key");
+    expect(mocks.settings.get("auth.config_key")).toBeNull();
+    expect(mocks.settings.get("auth.saved_keys.old.example_user")).toBeUndefined();
     expect(mocks.settings.get("lanproxy_config")).toEqual({ ssl: true });
+    expect(mocks.settings.get("nuwax.registrationDeviceId")).toBe(
+      "commercial-device",
+    );
   });
   it("registers with token and product device, commits before starting", async () => {
     mocks.settings.set("step1_config", { serverHost: origin });

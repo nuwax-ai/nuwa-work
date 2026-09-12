@@ -57,7 +57,13 @@ export function initializeCommercialAuth(
   }
   const deviceId = getDeviceId();
   if (readSetting("nuwax.registrationDeviceId") !== deviceId) {
+    // 设备身份盐变更（1.0.4 起 nuwax:device:v1）/换设备时清注册派生凭据，
+    // 但保留 savedKey：现行后端注册必须携带 savedKey（首登 Bearer-only 返回
+    // 4000），且实测接受「旧 savedKey + 新 deviceId」重注册——若一并清掉，
+    // 1.0.3 存量用户升级后将永远无法重新注册（savedKey 无处再获取）。
+    const legacySavedKey = readSetting("auth.saved_key");
     clearRegistration();
+    if (legacySavedKey != null) writeSetting("auth.saved_key", legacySavedKey);
     writeSetting("nuwax.registrationDeviceId", deviceId);
   }
   const flow = new AuthLifecycle({
