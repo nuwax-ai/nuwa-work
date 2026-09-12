@@ -21,7 +21,7 @@
 ## QA.4 文件服务数据面与 Windows 安装包
 
 - `scripts/acceptance/file-server-contract.cjs` 以另一随机端口和独立临时工作区启动 **随包** `nuwax-file-server`，按真实 multipart 接口上传 68 B PNG、读取文件列表、下载 ZIP；解析 ZIP 目录与压缩条目后确认 `probe.png` 的字节和原始 SHA256 完全一致。macOS、Windows 原生打包资源均 PASS。进程与临时目录在脚本结束清理；不复用或重启用户现有服务。该用例未走平台后端/前端授权会话。
-- Windows x64 NSIS 文件：`C:\Users\soddygo\Nuwax-delivery\20260912\qa4\windows\Nuwax-Setup-1.0.4-qa.20260912.4-unsigned.exe`，大小 **799,988,839 B**，SHA256 `5be110c7efc1b548b6e89c443137154f5fb03141ececc45cf0160ca3047badf7`，未签名。交互桌面安装退出码 0；安装后 `resources/app.asar` SHA256 `5c67cc19ef4bc8279491537dac04b81f4b06cfc5ece1c42aa4907b19b2037b3a`，随包前端 index.html SHA256 `51a884bcff906b4d14e59fe07826a82d2cb3e586d419365a7deb9802ff9daa1f`，与前端 pin 对齐。
+- Windows x64 NSIS 文件：`C:\Users\soddygo\Nuwax-delivery\20260912\qa4\windows\Nuwax-Setup-1.0.4-qa.20260912.4-unsigned.exe`；已复制到本机统一交付目录 `/Users/apple/Documents/Nuwax-delivery/20260912/qa4/Nuwax-Setup-1.0.4-qa.20260912.4-unsigned.exe` 并重算相同 SHA256。大小 **799,988,839 B**，SHA256 `5be110c7efc1b548b6e89c443137154f5fb03141ececc45cf0160ca3047badf7`，未签名。交互桌面安装退出码 0；安装后 `resources/app.asar` SHA256 `5c67cc19ef4bc8279491537dac04b81f4b06cfc5ece1c42aa4907b19b2037b3a`，随包前端 index.html SHA256 `51a884bcff906b4d14e59fe07826a82d2cb3e586d419365a7deb9802ff9daa1f`，与前端 pin 对齐。
 - Windows **安装态**隔离 profile 启动并退出 PASS：版本 `1.0.4-qa.20260912.4`，独立用户目录 `AppData\Roaming\Nuwax`；未登录时文件、代理、终端、computer 四项服务均未运行，WebView 加载企业登录页。该机器已有商业版数据，属于升级验证，不是干净安装。安装态文件桥八项 PASS；安装态文件服务上传/列表/下载 ZIP 字节校验 PASS。文件服务安装态第一次等待就绪超时，带启动输出诊断后重跑及连续三次复验均通过；未复现首轮超时，保留为稳定性观察项。
 - QA.4 原生包仅供提测；`20260912-qa2-acceptance.md` 的 QA.3 哈希与结论是历史记录，QA.3 存在 302 下载缺陷。
 
