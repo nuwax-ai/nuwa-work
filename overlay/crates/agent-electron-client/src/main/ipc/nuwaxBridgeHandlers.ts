@@ -5,11 +5,9 @@
  *     nuwax 用 localStorage.ACCESS_TOKEN（Authorization header）鉴权，非 cookie。
  *     这里把 token 按 webview 来源 origin 持久化到 settings 表（键 nuwax.accessToken.<origin>），
  *     与 sandbox ticket 隔离，实现「重启免登 / 登录持久化 / 登出联动」。
- *     服务生命周期联动：主进程只负责持久化与通知，起服务由 renderer 承接——
- *     persistToken(≈登录成功) → 发 nuwax:login-confirmed → renderer 走 reg+restartAll；
- *     clear(≈登出 + 401 失效) → 主进程 await 停止全部本地服务。
+ *     主进程 AuthLifecycle 串行注册与业务服务启停；失效/换域取消在途操作。
  * - native:saveImage
- *     右键另存图片：系统保存对话框 + net.fetch。相对地址按调用方 frame origin 归一为
+ *     右键另存图片：系统保存对话框 + Node fetch。相对地址按调用方 frame origin 归一为
  *     绝对地址；鉴权依赖回环网关对目标域代注 Bearer（见 loopbackGateway/gateway.ts）。
  * - native:openWindow
  *     新开独立窗口打开 nuwax 站内页面（智能体详情/工作流/网页应用开发/我的电脑等
@@ -25,7 +23,7 @@
  * 桥前端：preload/webviewPerfBridge.ts（注入到所有 http/https webview guest）。
  * 注册入口：ipc/index.ts 的 registerAllHandlers。
  */
-import { ipcMain, dialog, net, BrowserWindow, webContents } from "electron";
+import { ipcMain, dialog, BrowserWindow, webContents } from "electron";
 import type { IpcMainInvokeEvent, OpenDialogOptions } from "electron";
 import * as fs from "fs";
 import * as path from "path";
@@ -336,13 +334,8 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     for (const s of scopes) writeSetting(tokenKey(s), token);
     log.info("[NuwaxBridge] auth:persistToken saved", { scopes });
 
-    // 登录成功联动：通知 renderer 走「reg → 同步 → 重启服务」链路（与设置页重启
-    // 同一条 restartAllServices 路径）：reg 刷新服务端注册条目（端口/在线态），
-    // restartAll 使 lanproxy 等按新注册生效。persistToken 只在 /Login 登录成功时
-    // 触发（后台 token 刷新不走此 IPC），不存在「重复 restart 打断在跑会话」的
-    // 场景；此前「服务在跑即跳过」导致登录后注册态永不同步（壳侧无 reg，服务端
-    // 遗留旧条目）。无 savedKey（全新客户端首登）时 syncConfigToServer 自然跳过，
-    // 仅重启本地服务——首次注册待 Phase 3 后端 reg 支持 token 鉴权后补齐。
+    // 主进程注册成功后启动业务服务；切换 token 先取消旧代次并等待停服。
+    // renderer 仅消费状态通知，不另行注册或启动。
     if (previous && previous !== token) {
       authGeneration++;
       documents.set(documentKey(event), authGeneration);
@@ -612,7 +605,9 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
             destination.origin === currentBusinessOrigin()
               ? currentAccessToken()
               : null;
-          resp = await net.fetch(destination.toString(), {
+          // Electron net.fetch rejects manual redirects before exposing the 302.
+          // Node fetch preserves the response so every hop can recheck origin/auth.
+          resp = await globalThis.fetch(destination.toString(), {
             method: "GET",
             redirect: "manual",
             signal,
