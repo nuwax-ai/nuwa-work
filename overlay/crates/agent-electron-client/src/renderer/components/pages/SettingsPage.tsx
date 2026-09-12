@@ -38,7 +38,6 @@ import {
   SettingOutlined,
   DesktopOutlined,
   ReloadOutlined,
-  ExperimentOutlined,
 } from "@ant-design/icons";
 import { APP_DISPLAY_NAME, APP_DATA_DIR_NAME } from "@shared/constants";
 import {
@@ -67,11 +66,6 @@ import i18next from "../../services/i18n";
 
 import styles from "../../styles/components/ClientPage.module.css";
 import { useTheme, useI18nLang, type ThemeMode } from "../../App";
-import type {
-  SandboxCapabilities,
-  SandboxPolicy,
-  SandboxStatus,
-} from "@shared/types/sandbox";
 
 // Dev tools: 仅开发模式加载
 const IS_DEV = import.meta.env.DEV;
@@ -134,21 +128,6 @@ export default function SettingsPage() {
   const [langConfirmModalVisible, setLangConfirmModalVisible] = useState(false);
   const [langConfirmLoading, setLangConfirmLoading] = useState(false);
   const [pendingLang, setPendingLang] = useState("");
-  const [sandboxLoading, setSandboxLoading] = useState(false);
-  const [sandboxSaving, setSandboxSaving] = useState(false);
-  const [sandboxPolicy, setSandboxPolicy] = useState<SandboxPolicy | null>(
-    null,
-  );
-  const [sandboxCapabilities, setSandboxCapabilities] =
-    useState<SandboxCapabilities | null>(null);
-  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus | null>(
-    null,
-  );
-
-  // GUI MCP 设置
-  const [guiMcpLoading, setGuiMcpLoading] = useState(false);
-  const [guiMcpSaving, setGuiMcpSaving] = useState(false);
-  const [guiMcpEnabled, setGuiMcpEnabled] = useState<boolean | null>(null);
 
   // 使用表单中的 workspaceDir 作为"系统模块"的展示源，确保编辑保存后展示保持实时一致。
   const workspaceDir = Form.useWatch("workspaceDir", form) || "";
@@ -185,8 +164,8 @@ export default function SettingsPage() {
       // 本地化加速状态按 nuwaxLoadMode 反推（服务域名 serverHost 归「服务配置」
       // 表单原样带协议展示；登录流程改域会回写，此处自然跟随）
       const loopbackOn =
-        ((config as Record<string, unknown>).nuwaxLoadMode ?? "direct") ===
-        "gateway";
+        ((config as unknown as Record<string, unknown>).nuwaxLoadMode ??
+          "direct") === "gateway";
       const enriched = {
         ...config,
       };
@@ -240,56 +219,10 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const loadSandboxState = useCallback(async () => {
-    if (!window.electronAPI?.sandbox) return;
-
-    setSandboxLoading(true);
-    try {
-      const [policyRes, capsRes, statusRes] = await Promise.all([
-        window.electronAPI.sandbox.getPolicy(),
-        window.electronAPI.sandbox.capabilities(),
-        window.electronAPI.sandbox.status(),
-      ]);
-
-      if (policyRes?.success && policyRes.data) {
-        setSandboxPolicy(policyRes.data);
-      }
-      if (capsRes?.success && capsRes.data) {
-        setSandboxCapabilities(capsRes.data);
-      }
-      if (statusRes?.success && statusRes.data) {
-        setSandboxStatus(statusRes.data);
-      }
-    } catch (error) {
-      console.error("Failed to load sandbox config:", error);
-    } finally {
-      setSandboxLoading(false);
-    }
-  }, []);
-
-  const loadGuiMcpState = useCallback(async () => {
-    if (!window.electronAPI?.guiServer) return;
-    if (!FEATURES.ENABLE_GUI_AGENT_SERVER) return;
-
-    setGuiMcpLoading(true);
-    try {
-      const result = await window.electronAPI.guiServer.isEnabled();
-      if (result.enabled !== undefined) {
-        setGuiMcpEnabled(result.enabled);
-      }
-    } catch (error) {
-      console.error("Failed to load GUI MCP state:", error);
-    } finally {
-      setGuiMcpLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     loadConfig();
     loadAiConfig();
     loadSystemSettings();
-    loadSandboxState();
-    loadGuiMcpState();
 
     // 监听来自托盘等外部修改的自启动状态变化
     const handleAutolaunchChanged = (enabled: boolean) => {
@@ -305,7 +238,7 @@ export default function SettingsPage() {
         handleAutolaunchChanged as any,
       );
     };
-  }, [loadConfig, loadAiConfig, loadSystemSettings, loadSandboxState]);
+  }, [loadConfig, loadAiConfig, loadSystemSettings]);
 
   // ========== 加载语言列表 ==========
   useEffect(() => {
@@ -361,15 +294,16 @@ export default function SettingsPage() {
                 ? host
                 : `https://${host}`;
             }
-            await setupService.saveStep1Config({ ...existing, ...patch });
-            // 域名变更影响 reg / lanproxy / webview 解析，随保存重启服务
-            //（与本地化加速保存同语义；serverHost 前后端一体）
-            if (
-              (existing as { serverHost?: string }).serverHost !==
-              patch.serverHost
-            ) {
-              await window.electronAPI?.services?.restartAll?.();
+            if (existing.serverHost !== patch.serverHost) {
+              const switched =
+                await window.electronAPI!.services.configureServerHost(
+                  patch.serverHost,
+                );
+              if (!switched.success)
+                throw new Error(switched.error || "Domain switch failed");
+              patch.serverHost = switched.serverHost!;
             }
+            await setupService.saveStep1Config({ ...existing, ...patch });
             setOriginalConfig({ ...values, serverHost: patch.serverHost });
             setEditing(false);
             message.success(t(I18N_KEYS.Toast.SUCCESS.CONFIG_SAVED));
@@ -469,128 +403,6 @@ export default function SettingsPage() {
       }
     } catch {
       message.error(t("Claw.Settings.messages.openWorkspaceFailed"));
-    }
-  };
-
-  const handlePatchSandboxPolicy = async (
-    patch: Partial<SandboxPolicy>,
-    opts?: { skipMutualExclusion?: boolean },
-  ) => {
-    if (!window.electronAPI?.sandbox) return;
-    if (patch.enabled === true && sandboxCapabilities?.platform === "linux") {
-      message.warning(t("Claw.Settings.messages.sandboxLinuxNotAvailableYet"));
-      return;
-    }
-
-    // GUI MCP 与 Sandbox 互斥：开启 Sandbox 前先关闭 GUI MCP。
-    if (
-      !opts?.skipMutualExclusion &&
-      patch.enabled === true &&
-      FEATURES.ENABLE_GUI_AGENT_SERVER &&
-      guiMcpEnabled &&
-      window.electronAPI?.guiServer
-    ) {
-      setGuiMcpSaving(true);
-      try {
-        const disableGuiResult =
-          await window.electronAPI.guiServer.setEnabled(false);
-        if (!disableGuiResult.success) {
-          message.error(
-            disableGuiResult.error ||
-              t("Claw.Settings.guiMcp.messages.updateFailed"),
-          );
-          return;
-        }
-        setGuiMcpEnabled(false);
-        message.success(t("Claw.Settings.guiMcp.messages.disableSuccess"));
-      } catch {
-        message.error(t("Claw.Settings.guiMcp.messages.updateFailed"));
-        return;
-      } finally {
-        setGuiMcpSaving(false);
-      }
-    }
-
-    setSandboxSaving(true);
-    try {
-      const result = await window.electronAPI.sandbox.setPolicy(patch);
-      if (result?.success && result.data) {
-        setSandboxPolicy(result.data);
-        message.success(t("Claw.Settings.messages.sandboxPolicyUpdated"));
-        await loadSandboxState();
-      } else {
-        message.error(
-          result?.error ||
-            t("Claw.Settings.messages.updateSandboxPolicyFailed"),
-        );
-      }
-    } catch (error) {
-      message.error(t("Claw.Settings.messages.updateSandboxPolicyFailed"));
-    } finally {
-      setSandboxSaving(false);
-    }
-  };
-
-  const handleSetGuiMcpEnabled = async (
-    enabled: boolean,
-    opts?: { skipMutualExclusion?: boolean },
-  ) => {
-    if (!window.electronAPI?.guiServer) return;
-
-    // GUI MCP 与 Sandbox 互斥：开启 GUI MCP 前先关闭 Sandbox。
-    if (
-      enabled &&
-      !opts?.skipMutualExclusion &&
-      sandboxPolicy?.enabled &&
-      window.electronAPI?.sandbox
-    ) {
-      setSandboxSaving(true);
-      try {
-        const disableSandboxResult = await window.electronAPI.sandbox.setPolicy(
-          {
-            enabled: false,
-          },
-        );
-        if (disableSandboxResult?.success && disableSandboxResult.data) {
-          setSandboxPolicy(disableSandboxResult.data);
-          message.success(t("Claw.Settings.messages.sandboxPolicyUpdated"));
-          await loadSandboxState();
-        } else {
-          message.error(
-            disableSandboxResult?.error ||
-              t("Claw.Settings.messages.updateSandboxPolicyFailed"),
-          );
-          return;
-        }
-      } catch {
-        message.error(t("Claw.Settings.messages.updateSandboxPolicyFailed"));
-        return;
-      } finally {
-        setSandboxSaving(false);
-      }
-    }
-
-    setGuiMcpSaving(true);
-    try {
-      const result = await window.electronAPI.guiServer.setEnabled(enabled);
-      if (result.success) {
-        setGuiMcpEnabled(enabled);
-        message.success(
-          t(
-            enabled
-              ? "Claw.Settings.guiMcp.messages.enableSuccess"
-              : "Claw.Settings.guiMcp.messages.disableSuccess",
-          ),
-        );
-      } else {
-        message.error(
-          result.error || t("Claw.Settings.guiMcp.messages.updateFailed"),
-        );
-      }
-    } catch {
-      message.error(t("Claw.Settings.guiMcp.messages.updateFailed"));
-    } finally {
-      setGuiMcpSaving(false);
     }
   };
 
@@ -753,27 +565,7 @@ export default function SettingsPage() {
                   </Col>
                 </Row>
                 <Row gutter={16}>
-                  {FEATURES.ENABLE_GUI_AGENT_SERVER && (
-                    <Col span={12}>
-                      <Form.Item
-                        name="guiMcpPort"
-                        label={t("Claw.Settings.saveConfig.guiMcpPort")}
-                        rules={[
-                          {
-                            required: true,
-                            message: t("Claw.Settings.saveConfig.enterPort"),
-                          },
-                        ]}
-                      >
-                        <InputNumber
-                          min={1}
-                          max={65535}
-                          style={{ width: "100%" }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  )}
-                  <Col span={12}>
+                  <Col span={24}>
                     <Form.Item
                       name="ttydPort"
                       label={t("Claw.Settings.saveConfig.ttydPort")}
@@ -1028,147 +820,6 @@ export default function SettingsPage() {
                   {t("Claw.Settings.system.open")}
                 </Button>
               </div>
-            </div>
-          </div>
-
-          {/* 实验功能：Sandbox / GUI MCP */}
-          <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <ExperimentOutlined
-                style={{
-                  fontSize: 14,
-                  color: "var(--color-text-secondary)",
-                }}
-              />
-              <span className={styles.sectionTitle}>
-                {t("Claw.Settings.experimental.title")}
-              </span>
-            </div>
-            <div className={styles.sectionBody} style={{ padding: "0 16px" }}>
-              <div
-                style={{
-                  padding: "10px 0 0 0",
-                  fontSize: 11,
-                  color: "var(--color-text-tertiary)",
-                }}
-              >
-                {t("Claw.Settings.experimental.mutualExclusionHint")}
-              </div>
-
-              <div className={styles.serviceRow}>
-                <div className={styles.serviceInfo}>
-                  <div>
-                    <span className={styles.serviceLabel}>
-                      {t("Claw.Settings.sandbox.enable")}
-                    </span>
-                    <div className={styles.serviceDescription}>
-                      {sandboxStatus
-                        ? (() => {
-                            const { type, available, degraded, reason } =
-                              sandboxStatus;
-                            const isolation = degraded
-                              ? t("Claw.Settings.sandbox.statusDegraded")
-                              : available
-                                ? t("Claw.Settings.sandbox.statusAvailable")
-                                : t("Claw.Settings.sandbox.statusUnavailable");
-                            return `${type} · ${isolation}${
-                              reason ? ` · ${reason}` : ""
-                            }`;
-                          })()
-                        : t("Claw.Settings.sandbox.statusNotLoaded")}
-                    </div>
-                  </div>
-                </div>
-                <Switch
-                  size="small"
-                  checked={sandboxPolicy?.enabled ?? false}
-                  loading={sandboxSaving || sandboxLoading}
-                  onChange={(checked) =>
-                    handlePatchSandboxPolicy({ enabled: checked })
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  margin: "8px 0 6px 20px",
-                  padding: "10px 12px",
-                  border: "1px dashed var(--color-border)",
-                  borderRadius: 8,
-                  background: "var(--color-bg-section-header)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <span className={styles.serviceLabel}>
-                      {t("Claw.Settings.sandbox.mode")}
-                    </span>
-                    <div className={styles.serviceDescription}>
-                      {t("Claw.Settings.sandbox.modeDesc")}
-                      <br />
-                      {t("Claw.Settings.sandbox.modeRestartHint")}
-                    </div>
-                  </div>
-                  <Select
-                    size="small"
-                    style={{ width: 220 }}
-                    value={sandboxPolicy?.mode ?? "compat"}
-                    loading={sandboxSaving || sandboxLoading}
-                    disabled={!sandboxPolicy?.enabled}
-                    onChange={(value) =>
-                      handlePatchSandboxPolicy({
-                        mode: value as SandboxPolicy["mode"],
-                      })
-                    }
-                    options={[
-                      {
-                        value: "strict",
-                        label: t("Claw.Settings.sandbox.modeStrict"),
-                      },
-                      {
-                        value: "compat",
-                        label: t("Claw.Settings.sandbox.modeCompat"),
-                      },
-                      {
-                        value: "permissive",
-                        label: t("Claw.Settings.sandbox.modePermissive"),
-                      },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              {FEATURES.ENABLE_GUI_AGENT_SERVER && (
-                <div className={styles.serviceRow} style={{ marginTop: 10 }}>
-                  <div className={styles.serviceInfo}>
-                    <div>
-                      <span className={styles.serviceLabel}>
-                        {t("Claw.Settings.guiMcp.enable")}
-                      </span>
-                      <div className={styles.serviceDescription}>
-                        {guiMcpEnabled === null
-                          ? t("Claw.Settings.sandbox.statusNotLoaded")
-                          : guiMcpEnabled
-                            ? t("Claw.Settings.guiMcp.statusEnabled")
-                            : t("Claw.Settings.guiMcp.statusDisabled")}
-                      </div>
-                    </div>
-                  </div>
-                  <Switch
-                    size="small"
-                    checked={guiMcpEnabled ?? false}
-                    loading={guiMcpSaving || guiMcpLoading}
-                    onChange={(checked) => handleSetGuiMcpEnabled(checked)}
-                  />
-                </div>
-              )}
             </div>
           </div>
 

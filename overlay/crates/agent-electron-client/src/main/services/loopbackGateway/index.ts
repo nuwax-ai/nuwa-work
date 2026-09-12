@@ -290,6 +290,7 @@ export async function ensureLoopbackGateway(): Promise<
       enabled: false,
       origin: null,
       backend: resolveBackendOrigin(),
+      error: "Loopback gateway failed to start",
     });
     return undefined;
   }
@@ -391,6 +392,11 @@ export async function refreshLoopbackGateway(): Promise<void> {
   const before = JSON.stringify(readSetting(LOOPBACK_RUNTIME_KEY) ?? null);
   await stopLoopbackGateway();
   await ensureLoopbackGateway();
+  const state = readSetting(LOOPBACK_RUNTIME_KEY) as {
+    enabled?: boolean;
+    error?: string;
+  } | null;
+  if (state?.error) throw new Error(state.error);
   const after = JSON.stringify(readSetting(LOOPBACK_RUNTIME_KEY) ?? null);
   if (before === after) return;
   try {
