@@ -139,3 +139,7 @@ nuwa-electron-shell（基座，公开仓）
 - 登录重构前后：基座 `a62e2802`、社区 pin 树内仍有 `components/setup/SetupWizard.tsx`
 - 门禁与交付：`plans/20260912-delivery-closeout-acceptance.md`（含双平台包 sha256、真实运行态证据、未验证项）
 - 需求链：`plans/2026091{0,1,2}-*.md`、`release-notes/*.md`、两仓 `git log`
+
+## 九、治理轮更新（2026-09-12 下午）
+
+本文「提交映射」与各节 SHA 为合并前快照。同日下午的治理轮（`plans/20260912-repo-governance-plan.md`）完成：两仓 feat/electron-1.0.4-fixes 经 PR rebase 合并进 main（基座 ae7e21aa→f0ddd9fe、外层链 tip→209bdacf，树等价）；pin/nuwawork 线退役（.gitmodules 改 branch=main，单主干模型）；外层仓新增 ci.yml 双轨门禁与 check-base-purity 防泄回守卫；基座远端收敛至 main + archive + dependabot。§五 门禁表的本地口径不变，双轨已由 CI 强制。

@@ -61,12 +61,12 @@ PORT_OFFSET` 经 esbuild/vite define 固化，机制在基座 `constants.ts`，�
 
 ```bash
 git clone https://github.com/nuwax-ai/nuwax-client.git && cd nuwax-client
-git submodule update --init nuwa-electron-shell          # 基座仓 nuwa-electron-shell main 分支（公开）
-git submodule update --init nuwax                        # 壳根 nuwax 前端（dist 随仓提交，无需构建）
-git -C nuwa-electron-shell submodule update --init nuwax # 过渡期：基座内嵌 nuwax（基座瘦身后移除）
+git submodule update --init nuwa-electron-shell          # 基座仓 nuwax-electron-shell main 分支（公开）
+git submodule update --init nuwax                        # 壳根 nuwax 前端（dist 随仓提交，无需构建；基座已不内嵌前端）
 npm run base:install   # 基座内 pnpm install --filter（自动构建 agent-kit + 前置 overlay 同步）
 npm run base:dev       # 基座 make electron-dev（前置 overlay 同步 + 注入商业 env）
-npm run base:test      # 全量 vitest（--no-inject：社区基线=干净基座源码，exit=0）
+npm run base:test      # 社区基线（--no-inject：干净基座源码，exit=0）
+npm run test:commercial # 商业门禁（--no-env：同步 overlay、不注 env，全量 vitest）
 
 # 测试/运行前还需准备型资源（gitignore，fresh clone 必做）：
 cd nuwa-electron-shell/crates/agent-electron-client && npm run prepare:mcp-proxy
@@ -76,13 +76,29 @@ cd nuwa-electron-shell/crates/agent-electron-client && npm run prepare:mcp-proxy
 Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由基座
 `prepare:all` 在 Windows 宿主 cargo 构建；本壳不携带任何 Rust。
 
+## 分支模型与双轨门禁
+
+**单主干**：两仓均为 `feat/* 开发线 → PR → main → tag 发布`；基座 pin 跟随基座 main
+上的提交（`.gitmodules` branch=main），历史上的 `pin/nuwawork` 线已退役删除。
+发布由 tag 驱动（`electron-v*` / `prerelease-v*`），main 不直接发布。
+
+| 门禁 | 命令 | 口径 | CI |
+|---|---|---|---|
+| 社区基线 | `npm run base:test` | `--no-inject`：干净基座 + 社区默认值（会还原工作树 overlay） | ci.yml · community job |
+| 商业门禁 | `npm run test:commercial` | `--no-env`：同步 overlay、不注 env，全量 vitest | ci.yml · commercial job |
+| 守卫自测 | `npm run test:scripts` | check-base-purity 用例 | ci.yml · commercial job |
+
+⚠️ `base:test` 会把 overlay 产物清出基座工作树，本地跑完记得 `npm run overlay:sync` 还原商业态。
+
 ## 与基座 / 社区版的同步
 
-- **基座升级**：功能改动在 nuwa-electron-shell 提交；本壳发版前 bump submodule
-  pin（`git -C nuwa-electron-shell fetch origin && git -C nuwa-electron-shell checkout <sha>` →
-  外层提交 pin bump），并跑 `npm run overlay:check` 核对覆写文件与新版基座的差异。
+- **提交基座的标准流程**：中立改动在 nuwa-electron-shell 内 add/commit/push（feat 线经
+  PR 进 main，勿 rebase 改写已 pin 的 SHA）→ 本仓 `npm run check:pin`（基座脏文件/staged
+  不得混入 overlay 托管路径，CI 另有 `--remote origin/main` 字节级防线）→ bump submodule
+  pin 并跑 `npm run overlay:check` 核对覆写文件与新版基座的差异 → `npm run test:commercial`。
 - **社区版**：社区产品壳（默认身份、通道 nuwaclaw-electron）与商业版同源基座、
-  各自独立发布，互不影响。
+  各自独立发布，互不影响；社区仓 bump pin 跨基座 `f68964eb`（基座删除内嵌前端）时
+  需先补齐自身前端 pin 与 CI 断言，属独立工程。
 - **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 后，须同步快进 nuwax 仓的
   `pin/nuwawork` 分支到同一提交（CI 匿名拉取依赖它；基座瘦身后仅剩壳根一处）。
 

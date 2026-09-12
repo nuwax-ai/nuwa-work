@@ -6,7 +6,8 @@
 # 构建/签名/上传逻辑与社区版 release-electron.yml 同构，差异集中在本文件头注：
 #   1. checkout 用 submodules: true（非 recursive）：以 github.token 拉 submodule
 #      （基座仓公开）；显式两层 init 见 Init submodules 步骤
-#   2. nuwax 前端子模块（基座内嵌，dist 随仓提交）第二层手动 init（远端公开可匿名拉取）
+#   2. nuwax 前端子模块（壳根 nuwax/，dist 随仓提交；基座 f68964eb 后不再内嵌前端）
+#      第二层手动 init（远端公开可匿名拉取）
 #   3. 所有 crates/ 路径前缀 nuwa-electron-shell/crates/；pnpm workspace 根在 nuwa-electron-shell/
 #   4. 「Set version & commercial branding」步骤覆盖 appId/productName（npm pkg），
 #      并删除 extendInfo.CFBundleIdentifier 旧覆盖使 macOS bundle id 与 appId 统一
