@@ -12,6 +12,9 @@
     "base:install": "node scripts/in-base.js -- pnpm install --filter @nuwax-ai/nuwaclaw...",
     "base:dev": "node scripts/in-base.js -- make electron-dev",
     "base:test": "node scripts/in-base.js --no-inject -- npm run test:electron",
-    "base:bundle": "node scripts/in-base.js -- make electron-bundle-unsigned"
+    "base:bundle": "node scripts/in-base.js -- make electron-bundle-unsigned",
+    "test:commercial": "node scripts/in-base.js --no-env -- npm run test:electron",
+    "test:scripts": "node --test scripts/check-base-purity.test.mjs",
+    "check:pin": "node scripts/check-base-purity.js"
   }
 }
