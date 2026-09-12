@@ -184,7 +184,7 @@ mac 为 adhoc/未签名，Windows 未签名。测试机若开启 Gatekeeper/Smar
 | 平台 | 文件 | SHA256 |
 |---|---|---|
 | macOS arm64 | `~/Documents/Nuwax-delivery/20260912/Nuwax-1.0.4-qa.20260912-arm64-unsigned.app.zip` | `84179a15b7dbec9164782742e79684ba4432e9bca5761d980625e569928f8d7c`（app.asar `e7bb999d…`） |
-| Windows x64 | `win-pc:…\windows\Nuwax-Setup-1.0.4-qa.20260912-unsigned.exe` | 见仓库随附更新（同源构建） |
+| Windows x64 | `win-pc:…\windows\Nuwax-Setup-1.0.4-qa.20260912-unsigned.exe`（796,330,589 B） | `7c58c3681dcb684a13498ad72c2442677b21096f958eefb1e3538a04234c8d48`（含呼吸+身份修复核验：`app-loading-body`×11、`--pulse`×7、`typeof process` 守卫品牌注入 0） |
 
 ### 事件记录（对测试人员的影响说明）
 
