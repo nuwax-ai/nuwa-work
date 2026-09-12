@@ -1,0 +1,2 @@
+{"meta":{"version":"1.0.4-qa.20260912.4","name":"Nuwax","userData":"C:\\Users\\soddygo\\AppData\\Roaming\\Nuwax"},"state":{"auth":{"phase":"stopped","loggedIn":false},"file":{"running":false},"proxy":{"running":false},"terminal":{"running":false},"computer":{"running":false}},"views":[{"url":"https://testagent.xspaceagi.com/login?redirect=https%3A%2F%2Ftestagent.xspaceagi.com%2F","login":true}]}
+PASS WINDOWS_INSTALLED_QA4_STARTUP_AND_QUIT

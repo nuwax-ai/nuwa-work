@@ -22,11 +22,12 @@ function extractZipEntry(zip,basename){
 (async()=>{
  const dir=await mkdtemp(path.join(tmpdir(),'nuwax-fs-contract-'));const workspace=path.join(dir,'workspace');await mkdir(workspace);const roots=Object.fromEntries(['INIT_PROJECT_DIR','PROJECT_SOURCE_DIR','DIST_TARGET_DIR','UPLOAD_PROJECT_DIR','COMPUTER_WORKSPACE_DIR','LOG_BASE_DIR','COMPUTER_LOG_DIR'].map(x=>[x,path.join(dir,x)]));
  const probe=net.createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;await new Promise(r=>probe.close(r));
- const child=spawn(process.execPath,[path.join(resource,'nuwax-file-server','dist','server.js')],{cwd:path.join(resource,'nuwax-file-server'),env:{...process.env,...roots,PORT:String(port),NODE_ENV:'production',DEPLOYMENT_MODE:'local'},stdio:'ignore'});
+ const child=spawn(process.execPath,[path.join(resource,'nuwax-file-server','dist','server.js')],{cwd:path.join(resource,'nuwax-file-server'),env:{...process.env,...roots,PORT:String(port),NODE_ENV:'production',DEPLOYMENT_MODE:'local'},stdio:['ignore','pipe','pipe']});
+ let startupOutput='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{startupOutput=(startupOutput+chunk.toString()).slice(-4000)});
  try{
   const base=`http://127.0.0.1:${port}`;let ready=false;
   for(let i=0;i<50;i++){if(child.exitCode!==null)throw Error('File server exited during startup');try{const r=await fetch(base+'/api/computer/fs/roots',{signal:AbortSignal.timeout(1000)});if(r.status<500){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,200));}
-  assert(ready,'file server did not become ready');
+  assert(ready,`file server did not become ready (exit=${child.exitCode})\n${startupOutput}`);
   const data=new FormData();data.append('userId','qa4');data.append('cId','123');data.append('filePath','probe.png');data.append('customTargetDir',workspace);data.append('file',new Blob([payload],{type:'image/png'}),'probe.png');
   const upload=await fetch(base+'/api/computer/upload-file',{method:'POST',body:data});const uploadJson=await upload.json();assert.equal(uploadJson.success,true,JSON.stringify(uploadJson));
   assert.deepEqual(await readFile(path.join(workspace,'probe.png')),payload);
