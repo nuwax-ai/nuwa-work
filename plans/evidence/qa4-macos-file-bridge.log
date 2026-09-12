@@ -1,0 +1,10 @@
+PASS exact bytes /image
+PASS exact bytes /redirect
+PASS failure preserves destination and cleans partial /error
+PASS failure preserves destination and cleans partial /broken
+PASS failure preserves destination and cleans partial /loop
+PASS dialog cancellation
+PASS domain switch aborts pending transfer without overwrite
+PASS bearer only to business origin, stripped on redirected origin
+PAYLOAD_SHA256 4b10f25b022a4d92a04ced289a519f8ff16be1c8ae2dd23441e157c30993b88e
+PASS FILE_BRIDGE_FIXTURE /tmp/nuwax-file-bridge-EjV5DJ

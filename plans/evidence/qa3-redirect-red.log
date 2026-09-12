@@ -1,0 +1,13 @@
+PASS exact bytes /image
+AssertionError [ERR_ASSERTION]: {"success":false,"error":"Redirect was cancelled"}
+
+false !== true
+
+    at /private/tmp/nuwax-qa-runtime/qa3-file-bridge.cjs:18:82 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

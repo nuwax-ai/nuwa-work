@@ -46,7 +46,6 @@ vi.mock("electron", () => ({
     },
   },
   dialog: { showSaveDialog: mocks.showSaveDialog },
-  net: { fetch: mocks.netFetch },
   BrowserWindow: class {},
   webContents: {
     getAllWebContents: () => [{ session: { clearStorageData: mocks.storage } }],
@@ -250,6 +249,7 @@ describe("native:saveImage（另存图片）", () => {
   beforeEach(() => {
     mocks.showSaveDialog.mockReset();
     mocks.netFetch.mockReset();
+    vi.stubGlobal("fetch", mocks.netFetch);
     mocks.showSaveDialog.mockResolvedValue({
       canceled: false,
       filePath: tmpFile,
@@ -257,6 +257,7 @@ describe("native:saveImage（另存图片）", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     fs.rmSync(tmpFile, { force: true });
   });
 
