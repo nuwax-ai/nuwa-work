@@ -1,4 +1,5 @@
 import { app, net } from "electron";
+import * as os from "os";
 import { readSetting, writeSetting, getDb } from "../db";
 import {
   DEFAULT_SERVER_HOST,
@@ -18,6 +19,11 @@ export function currentBusinessOrigin(): string {
     (readSetting("step1_config") as { serverHost?: string } | null)
       ?.serverHost || DEFAULT_SERVER_HOST;
   return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).origin;
+}
+/** 注册上报的电脑名（三平台）：os.hostname 通吃 macOS/Windows/Linux，
+ * 仅剥 macOS Bonjour 的 .local 尾巴（DONG-MBP128.local → DONG-MBP128）。 */
+export function getComputerName(): string {
+  return os.hostname().replace(/\.local$/i, "").trim();
 }
 export function currentAccessToken(): string | null {
   const value = readSetting(`nuwax.accessToken.${currentBusinessOrigin()}`);
@@ -95,6 +101,7 @@ export function initializeCommercialAuth(
           password: "",
           ...(savedKey ? { savedKey } : {}),
           deviceId,
+          computerName: getComputerName(),
           sandboxConfigValue: {
             hostWithScheme: LOCAL_HOST_URL,
             agentPort: ports.agent,

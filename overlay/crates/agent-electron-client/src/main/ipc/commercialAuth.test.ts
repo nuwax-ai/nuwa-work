@@ -26,7 +26,10 @@ vi.mock("../services/startupPorts", () => ({
 vi.mock("../services/system/deviceId", () => ({
   getDeviceId: () => "commercial-device",
 }));
-import { initializeCommercialAuth } from "./commercialAuth";
+vi.mock("os", () => ({
+  hostname: () => "fengfei-mac-xx.local",
+}));
+import { getComputerName, initializeCommercialAuth } from "./commercialAuth";
 const origin = "https://enterprise.example.com";
 function fixture() {
   const start = vi.fn(async () => ({ success: true }));
@@ -90,6 +93,9 @@ describe("commercial registration protocol", () => {
     expect(options.headers.Authorization).toBe("Bearer opaque-token");
     const body = JSON.parse(options.body);
     expect(body.deviceId).toBe("commercial-device");
+    // 电脑名三平台取 os.hostname，剥 macOS .local 尾巴后上报
+    expect(body.computerName).toBe("fengfei-mac-xx");
+    expect(getComputerName()).toBe("fengfei-mac-xx");
     expect(body.savedKey).toBeUndefined();
     expect(body.sandboxConfigValue.fileServerPort).toBe(61005);
     expect(mocks.settings.get("auth.config_key")).toBe("new");
