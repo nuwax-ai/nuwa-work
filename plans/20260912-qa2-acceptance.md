@@ -31,6 +31,18 @@
 
 仅预发布、不更新正式渠道。新版本增加 `.2` 避免与有退出缺陷的旧包混淆。
 
+**`.3` 候选包（当前有效交付物，= 双 pin 收口后的完整修复集：PR#10 退出清理 + saveResponse 拒错 + 前端导出真实反馈 + 此前全部：呼吸动画/身份修复/savedKey 保留）**
+
+- macOS arm64：`/Users/apple/Documents/Nuwax-delivery/20260912/qa3/Nuwax-1.0.4-qa.20260912.3-arm64-unsigned.app.zip`
+- macOS SHA256：zip `e02fb0e14ba39280f25d0aeb11bd143eb90d4247b410513d2443dad53a5cc13b`（app.asar `23a0e4f47b0879f9fb70c44795c379382ce79be0513f84a2983f7b40034e86fb`）
+- macOS 载荷核验：包内 `nuwax-dist`（797 文件）与前端提交 `581e63806` 的 dist **逐字节一致**（diff 空、index.html 哈希对上）；呼吸标记在 bundle（app-loading-body×11 / --pulse×7）
+- macOS 真机（真实登录态）：版本对读 `1.0.4-qa.20260912.3`；登录恢复→fileServer/lanproxy/ttyd/ComputerServer 四服务全 running；退出后 3 个受管子进程 PID 全部消失（退出修复在位）
+- Windows x64：`C:\Users\soddygo\Nuwax-delivery\20260912\qa3\windows\Nuwax-Setup-1.0.4-qa.20260912.3-unsigned.exe`（799,988,197 B）
+- Windows SHA256：exe `931d385751935215afece03177ed9b7932b8955b1ab250db684d7b45369c9af1`；安装后 `app.asar` `e1539630f81604111f314b373a9fd4a51740ec49fbc0389ab8dc87cc86ce03e0` **== unpacked 产物哈希（载荷对拍通过）**；注册表 `Nuwax 1.0.4-qa.20260912.3`；包内前端 `nuwax-dist/index.html` 哈希 `51a884bc…` 与 mac 包及前端提交三方一致
+- Windows 启动/退出验收（诚实边界）：安装后干净启动至稳定窗口（45s 截图留档 `C:\Users\soddygo\qa3-win-runtime.png`，登录页渲染链路与 QA.2 同构、codex 已目检过该形态；本次未做像素级复检）；**本机无登录态 → 业务服务不起 → 退出残留路径在 Windows 上不可验证**（需后端放开首登或提供凭据；mac 已真机验证同修复）；`taskkill` 的 WM_CLOSE 使应用按设计收入托盘（main 进程存活属预期行为，经托盘退出才是退出路径）；首轮退出检查中 13 个 node.exe「残留」经进程树归属核实全为旧实例/无关开发进程，不构成本次证据
+
+**`.2` 包（历史留档，已被 `.3` 取代）**
+
 - macOS arm64：`/Users/apple/Documents/Nuwax-delivery/20260912/qa2/Nuwax-1.0.4-qa.20260912.2-arm64-unsigned.app.zip`
 - SHA256：`26f218866fd093efb5f0460d5544fe98e28e57712a9879b8363d53e88bd6939f`
 - 签名：adhoc，无开发者签名/公证；本机 Gatekeeper 被关闭，`spctl accepted` 不构成公证通过证据。
