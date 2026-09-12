@@ -27,3 +27,14 @@
 
 
 证据可随仓库复核：[QA.3 红灯](evidence/qa3-redirect-red.log)、[macOS 文件桥](evidence/qa4-macos-file-bridge.log)、[Windows 文件桥](evidence/qa4-windows-file-bridge.log)、[macOS 文件服务](evidence/qa4-macos-file-server.log)、[Windows 文件服务](evidence/qa4-windows-file-server.log)、[Windows 安装态启动](evidence/qa4-windows-installed-startup.log)、[Windows 安装态文件桥](evidence/qa4-windows-installed-file-bridge.log)、[Windows 安装态文件服务](evidence/qa4-windows-installed-file-server.log)。
+
+## QA.4 提测人员执行清单
+
+使用本页 QA.4 文件名和 SHA256，勿使用早轮验收记录里的 QA.2/QA.3 包。Windows 在交互桌面双击安装；macOS 解压 ZIP 后启动。以下涉及真实账号/平台后端的项目尚未计入本轮通过，执行时保留页面截图、应用日志、进程/端口快照及文件 SHA256。
+
+1. 在没有商业版数据的 profile 冷启动，确认约 3 秒呼吸启动屏后到企业登录页；依赖初始化失败应显示重试入口。未登录时四项业务服务均不运行，原有 NuwaClaw 数据目录无读写。
+2. 用可完成首次设备注册的测试身份登录：确认先注册再启动 fileServer、lanproxy、ttyd、ComputerServer，四项健康检查通过；登出和再次登录后确认进程/端口分别退出、恢复。注册失败应有明确提示且业务服务保持停止。
+3. 登录后通过「企业登录」执行域 A→B→A；切换中确认旧域请求/凭据不再生效，旧服务停止，新域页面与登录态一致；模拟停服或网关切换失败时界面不得报成功。
+4. 在真实工作区上传一个含已知 SHA256 的图片，下载回本机并另存该图片；三份文件哈希应一致。再覆盖测试 302 图片、保存取消、断网中断和不可写目录，失败时目标旧文件不损坏且无 `.part` 残留。
+5. 在同机启动 NuwaClaw 与 Nuwax，分别登录并运行服务；确认两者各自数据目录、Cookie 和端口独立，退出 Nuwax 不影响 NuwaClaw。随后断网重启 Nuwax，再恢复网络并确认重连及最终退出没有业务子进程残留。
+6. 在已有商业版数据的机器升级至 QA.4，确认商业版自身登录可恢复且使用新的商业 deviceId 重新注册；旧设备记录不会自动删除。Windows 本轮只完成了未登录升级安装与启动，仍需此项已登录验收。
