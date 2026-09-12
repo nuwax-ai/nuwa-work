@@ -9,7 +9,10 @@
  * 修复后三路（getToken 回退 / persistToken 双写 / clear 全清）共享 nuwaxTokenScopes。
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
 const settings = new Map<string, unknown>();
 const handlers = new Map<
@@ -18,6 +21,12 @@ const handlers = new Map<
 >();
 const emitters = new Map<string, ((...args: unknown[]) => void)[]>();
 let mainWindowSender: ((channel: string, payload: unknown) => void) | undefined;
+
+// vi.mock 工厂被提升，共享 mock 需经 vi.hoisted 提前创建
+const mocks = vi.hoisted(() => ({
+  showSaveDialog: vi.fn(),
+  netFetch: vi.fn(),
+}));
 
 vi.mock("electron", () => ({
   ipcMain: {
@@ -33,8 +42,8 @@ vi.mock("electron", () => ({
       emitters.set(channel, list);
     },
   },
-  dialog: {},
-  net: {},
+  dialog: { showSaveDialog: mocks.showSaveDialog },
+  net: { fetch: mocks.netFetch },
   BrowserWindow: class {},
 }));
 
@@ -69,8 +78,6 @@ vi.mock("../db", () => ({
 
 vi.mock("./processHandlers", () => ({
   stopAllServicesNow: vi.fn(async () => undefined),
-  restartAllServicesNow: vi.fn(async () => undefined),
-  isAnyCoreServiceRunning: vi.fn(() => true),
 }));
 
 import {
@@ -185,6 +192,127 @@ describe("configureServerHost（企业登录切换域名）", () => {
     expect(empty.success).toBe(false);
     expect(bad.success).toBe(false);
     expect(settings.get("step1_config")).toEqual(before);
+  });
+
+  it("切换域名 → 清旧域派生凭据与旧域 token 键（否则 Start All / lanproxy 用旧域 key）", async () => {
+    // 旧域登录态残留：savedKey/configKey（lanproxy clientKey 来源）+ 旧域 token 键
+    settings.set("auth.saved_key", "OLD-SK");
+    settings.set("auth.config_key", "OLD-CK");
+    settings.set("auth.username", "user1");
+    settings.set(`auth.saved_keys.${new URL(HOST_ORIGIN).hostname}_user1`, "OLD-SK1");
+    settings.set(`${NUWAX_TOKEN_KEY_PREFIX}${GW_ORIGIN}`, "OLD-TOKEN-GW");
+    settings.set(`${NUWAX_TOKEN_KEY_PREFIX}${HOST_ORIGIN}`, "OLD-TOKEN-HOST");
+    // 旧域隧道地址（serviceManager 起 lanproxy 时读）
+    settings.set("lanproxy.server_host", new URL(HOST_ORIGIN).host);
+    settings.set("lanproxy.server_port", 8080);
+
+    const res = (await handlers.get("auth:configureServerHost")!(
+      senderEvent(GW_ORIGIN),
+      "biz.example.com",
+    )) as { success: boolean };
+
+    expect(res.success).toBe(true);
+    // 派生凭据清空
+    expect(settings.get("auth.saved_key")).toBeNull();
+    expect(settings.get("auth.config_key")).toBeNull();
+    expect(settings.get("auth.username")).toBeNull();
+    expect(
+      settings.get(`auth.saved_keys.${new URL(HOST_ORIGIN).hostname}_user1`),
+    ).toBeUndefined();
+    // 旧域 token 键（含网关键）清空，避免换域后仍被代注/回退链读到
+    expect(settings.get(`${NUWAX_TOKEN_KEY_PREFIX}${GW_ORIGIN}`)).toBeNull();
+    expect(settings.get(`${NUWAX_TOKEN_KEY_PREFIX}${HOST_ORIGIN}`)).toBeNull();
+    // 旧域隧道地址清空，由新域登录的 reg 回写
+    expect(settings.get("lanproxy.server_host")).toBeNull();
+    expect(settings.get("lanproxy.server_port")).toBeNull();
+    // 业务域本身照旧写入新域
+    const step1 = settings.get("step1_config") as Record<string, unknown>;
+    expect(step1.serverHost).toBe("https://biz.example.com");
+  });
+});
+
+describe("native:saveImage（另存图片）", () => {
+  const tmpFile = path.join(os.tmpdir(), `nuwax-saveimage-${process.pid}.png`);
+
+  beforeEach(() => {
+    mocks.showSaveDialog.mockReset();
+    mocks.netFetch.mockReset();
+    mocks.showSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: tmpFile,
+    });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpFile, { force: true });
+  });
+
+  it("相对地址 → 按调用方 frame origin 归一为绝对地址再取图并流式落盘", async () => {
+    mocks.netFetch.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+    );
+
+    const res = (await handlers.get("native:saveImage")!(
+      senderEvent(GW_ORIGIN),
+      { url: "/api/computer/static/photo.png" },
+    )) as { success: boolean; path?: string };
+
+    expect(res.success).toBe(true);
+    expect(mocks.netFetch).toHaveBeenCalledWith(
+      `${GW_ORIGIN}/api/computer/static/photo.png`,
+      { method: "GET" },
+    );
+    expect(fs.readFileSync(tmpFile)).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it("绝对地址 → 原样取图", async () => {
+    mocks.netFetch.mockResolvedValue(
+      new Response(new Uint8Array([9]), { status: 200 }),
+    );
+
+    const res = (await handlers.get("native:saveImage")!(
+      senderEvent(GW_ORIGIN),
+      { url: `${HOST_ORIGIN}/a/b.png` },
+    )) as { success: boolean };
+
+    expect(res.success).toBe(true);
+    expect(mocks.netFetch).toHaveBeenCalledWith(`${HOST_ORIGIN}/a/b.png`, {
+      method: "GET",
+    });
+  });
+
+  it("非 http(s) 协议 → 拒绝且不发起取图", async () => {
+    const res = (await handlers.get("native:saveImage")!(
+      senderEvent(GW_ORIGIN),
+      { url: "file:///etc/passwd" },
+    )) as { success: boolean; error?: string };
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("unsupported protocol");
+    expect(mocks.netFetch).not.toHaveBeenCalled();
+  });
+
+  it("相对地址但 frame 无 origin → 判非法（不猜基准地址）", async () => {
+    const res = (await handlers.get("native:saveImage")!(
+      { senderFrame: { url: "" } },
+      { url: "/x.png" },
+    )) as { success: boolean; error?: string };
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBe("invalid url");
+    expect(mocks.netFetch).not.toHaveBeenCalled();
+  });
+
+  it("取消保存对话框 → 返回 canceled 且不取图", async () => {
+    mocks.showSaveDialog.mockResolvedValue({ canceled: true });
+
+    const res = (await handlers.get("native:saveImage")!(
+      senderEvent(GW_ORIGIN),
+      { url: `${HOST_ORIGIN}/a/b.png` },
+    )) as { success: boolean; canceled?: boolean };
+
+    expect(res.canceled).toBe(true);
+    expect(mocks.netFetch).not.toHaveBeenCalled();
   });
 });
 

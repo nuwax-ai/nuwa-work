@@ -5,10 +5,12 @@
  *     nuwax 用 localStorage.ACCESS_TOKEN（Authorization header）鉴权，非 cookie。
  *     这里把 token 按 webview 来源 origin 持久化到 settings 表（键 nuwax.accessToken.<origin>），
  *     与 sandbox ticket 隔离，实现「重启免登 / 登录持久化 / 登出联动」。
- *     服务生命周期联动（Phase 2）：persistToken(≈登录成功) → best-effort 起服务；
- *     clear(≈登出 + 401 失效) → 停止全部本地服务。
+ *     服务生命周期联动：主进程只负责持久化与通知，起服务由 renderer 承接——
+ *     persistToken(≈登录成功) → 发 nuwax:login-confirmed → renderer 走 reg+restartAll；
+ *     clear(≈登出 + 401 失效) → 主进程 await 停止全部本地服务。
  * - native:saveImage
- *     右键另存图片：系统保存对话框 + net.fetch（走 defaultSession，携带登录态 cookie）写盘。
+ *     右键另存图片：系统保存对话框 + net.fetch。相对地址按调用方 frame origin 归一为
+ *     绝对地址；鉴权依赖回环网关对目标域代注 Bearer（见 loopbackGateway/gateway.ts）。
  * - native:openWindow
  *     新开独立窗口打开 nuwax 站内页面（智能体详情/工作流/网页应用开发/我的电脑等
  *     全屏页）。带系统标题栏（零遮挡）+ 同一 webview 桥 preload；URL 追加 _shell=1
@@ -27,21 +29,19 @@ import { ipcMain, dialog, net, BrowserWindow } from "electron";
 import type { IpcMainInvokeEvent, OpenDialogOptions } from "electron";
 import * as fs from "fs";
 import * as path from "path";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import log from "electron-log";
 import type { HandlerContext } from "@shared/types/ipc";
 import { readSetting, writeSetting, getDb } from "../db";
-import {
-  stopAllServicesNow,
-  restartAllServicesNow,
-  isAnyCoreServiceRunning,
-} from "./processHandlers";
+import { stopAllServicesNow } from "./processHandlers";
 
 /** nuwax ACCESS_TOKEN 存储键前缀，按来源 origin 分域，避免污染 sandbox ticket。 */
 export const NUWAX_TOKEN_KEY_PREFIX = "nuwax.accessToken.";
 
 /** 从 IPC 调用方（webview guest）解析来源 origin 作为 token 存储作用域。 */
-function resolveSenderOrigin(event: IpcMainInvokeEvent): string {
-  const url = event.senderFrame?.url || event.sender?.getURL?.() || "";
+function resolveSenderOrigin(event: IpcMainInvokeEvent | undefined): string {
+  const url = event?.senderFrame?.url || event?.sender?.getURL?.() || "";
   try {
     return url ? new URL(url).origin : "global";
   } catch {
@@ -115,6 +115,8 @@ const shellWindows = new Set<BrowserWindow>();
 export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   // localFiles 仅保留宿主原生目录选择器：返回绝对路径，数据面由 nuwax 走
   // file-server（customTargetDir）HTTP 通道，主进程不做持久化与文件操作。
+  // 注：当前 nuwax 前端已无调用方（「文件树选择非工作空间目录」需求回滚，
+  // 见 nuwax/specs/luodong-delivery.md）。保留为对外桥面，避免前端需要时再动基座。
   ipcMain.handle("localFiles:pickDirectory", async () => {
     const win = ctx.getMainWindow();
     const options: OpenDialogOptions = {
@@ -276,12 +278,12 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
 
   // ---- auth：企业登录（切换后端域名，客户端重新初始化） ----
   // 登录页「企业登录」入口调用：归一化并写入 step1_config.serverHost（业务域
-  // 唯一事实源），立即停止全部本地服务（重新初始化语义——在跑的 lanproxy 等
-  // 仍连旧域名，留着只会错乱），刷新回环网关（gateway 形态反代目标随域重指），
-  // 并通知 renderer 重解析 webview URL（direct 形态即加载新域名的 /Login）。
-  // 切换后 webview 在新域无 token → 登录页；登录成功经 persistToken →
-  // nuwax:login-confirmed → reg+重启服务，完成向新域的重新初始化。
-  ipcMain.handle("auth:configureServerHost", (_event, input: unknown) => {
+  // 唯一事实源），清掉旧域全部派生凭据，停止全部本地服务（重新初始化语义——
+  // 在跑的 lanproxy 等仍连旧域名，留着只会错乱），刷新回环网关（gateway 形态
+  // 反代目标随域重指），并通知 renderer 重解析 webview URL（direct 形态即加载
+  // 新域名的 /Login）。切换后 webview 在新域无 token → 登录页；登录成功经
+  // persistToken → nuwax:login-confirmed → reg+重启服务，完成向新域的重新初始化。
+  ipcMain.handle("auth:configureServerHost", async (event, input: unknown) => {
     const raw =
       typeof input === "string" ? input.trim().replace(/\/+$/, "") : "";
     if (!raw) return { success: false, error: "empty domain" };
@@ -299,25 +301,49 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
       return { success: false, error: "invalid domain" };
     }
 
+    // 旧域 token 候选键快照：nuwaxTokenScopes 读 step1_config 当前值，写入新
+    // serverHost 之后就再也推导不出旧域的键了（旧 token 会变成清不掉的孤儿）。
+    const staleScopes = nuwaxTokenScopes(resolveSenderOrigin(event));
+
     const prev = readSetting("step1_config") as Record<
       string,
       unknown
     > | null;
+    const prevServerHost = (prev?.serverHost as string) ?? null;
     writeSetting("step1_config", { ...(prev ?? {}), serverHost: origin });
     log.info("[NuwaxBridge] configureServerHost", {
-      from: (prev?.serverHost as string) ?? null,
+      from: prevServerHost,
       to: origin,
     });
 
-    // 立即停服 + 网关重指（异步 best-effort，不阻塞返回；webview 随事件重载）
-    void stopAllServicesNow().catch((e) =>
-      log.warn("[NuwaxBridge] domain switch stop services failed (ignored):", e),
-    );
-    void import("../services/loopbackGateway")
-      .then(({ refreshLoopbackGateway }) => refreshLoopbackGateway())
-      .catch((e) =>
-        log.warn("[NuwaxBridge] domain switch gateway refresh failed (ignored):", e),
+    // 清旧域派生凭据，否则「重新初始化」只在 token 层生效：
+    // - savedKey/configKey 是 reg 响应缓存（lanproxy clientKey 来源），残留会让
+    //   Start All 门禁（!!configKey）继续敞开，且 lanproxy 拿旧域 savedKey 往旧域建隧道；
+    // - lanproxy.server_host/port 是 reg 回写的隧道地址（serviceManager 起 lanproxy 时读），
+    //   残留会把隧道指向旧域。清空后由新域登录的 reg 重新写回。
+    // webview 自己的 localStorage.ACCESS_TOKEN 无需处理：新域是另一个 origin，
+    // 其 localStorage 天然隔离。
+    clearShellAuthState();
+    for (const scope of staleScopes) writeSetting(tokenKey(scope), null);
+    writeSetting("lanproxy.server_host", null);
+    writeSetting("lanproxy.server_port", null);
+
+    // 停服 → 网关重指 按序串行并 await：确保 webview 重载新域前旧域 lanproxy 确已停止、
+    // 网关反代目标确已重指（与 auth:clear 的 await 口径一致）。两者内部对各进程均有
+    // 超时，整体有界；失败只 warn，不影响域名已写入的结果。
+    try {
+      await stopAllServicesNow();
+    } catch (e) {
+      log.warn("[NuwaxBridge] domain switch stop services failed (ignored):", e);
+    }
+    try {
+      const { refreshLoopbackGateway } = await import(
+        "../services/loopbackGateway"
       );
+      await refreshLoopbackGateway();
+    } catch (e) {
+      log.warn("[NuwaxBridge] domain switch gateway refresh failed (ignored):", e);
+    }
 
     ctx
       .getMainWindow()
@@ -401,41 +427,76 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   // ---- native：右键另存图片 ----
   ipcMain.handle(
     "native:saveImage",
-    async (_event, opts: { url: string; filename?: string }) => {
+    async (event, opts: { url: string; filename?: string }) => {
       try {
         const { url, filename } = opts || {};
-        if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+        if (typeof url !== "string" || !url) {
           return { success: false, error: "invalid url" };
+        }
+
+        // nuwax 前端直接传 <img src> 原值，markdown 图片常见相对地址
+        // （/api/computer/static/... 或裸路径），而 net.fetch 只接受绝对 URL。
+        // 以调用方 frame 的 origin 为 base 归一；base 缺失或解析失败才判非法。
+        let target: URL;
+        try {
+          target = new URL(url, event.senderFrame?.url || undefined);
+        } catch {
+          return { success: false, error: "invalid url" };
+        }
+        if (!/^https?:$/.test(target.protocol)) {
+          return { success: false, error: "unsupported protocol" };
         }
 
         // 默认文件名：URL 末段；非法文件名字符替换为下划线；无扩展名补 .png
         const derived =
           filename ||
-          decodeURIComponent(url.split("?")[0].split("/").pop() || "") ||
+          decodeURIComponent(target.pathname.split("/").pop() || "") ||
           "image";
         const safeName = derived.replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
         const ext = path.extname(safeName) ? "" : ".png";
         const defaultPath = `${safeName}${ext}`;
+        const extension = path
+          .extname(`${safeName}${ext}`)
+          .replace(".", "")
+          .toLowerCase();
+        const filters = extension
+          ? [
+              { name: extension.toUpperCase(), extensions: [extension] },
+              { name: "All Files", extensions: ["*"] },
+            ]
+          : undefined;
 
         const win = ctx.getMainWindow();
         const res = win
-          ? await dialog.showSaveDialog(win, { defaultPath })
-          : await dialog.showSaveDialog({ defaultPath });
+          ? await dialog.showSaveDialog(win, { defaultPath, filters })
+          : await dialog.showSaveDialog({ defaultPath, filters });
         if (res.canceled || !res.filePath) {
           return { success: false, canceled: true };
         }
 
-        // net.fetch 走 defaultSession（与 webview 同会话，携带登录态 cookie）
-        const resp = await net.fetch(url, { method: "GET" });
+        // net.fetch 走 defaultSession（与 webview 同会话）。鉴权不依赖 cookie：
+        // 地址指向回环网关时，网关对云端方向代注 Bearer（见 gateway.ts 的 buildProxyHeaders）。
+        const resp = await net.fetch(target.toString(), { method: "GET" });
         if (!resp.ok) {
           return { success: false, error: `http ${resp.status}` };
         }
-        const buf = Buffer.from(await resp.arrayBuffer());
-        fs.writeFileSync(res.filePath, buf);
+        if (!resp.body) {
+          return { success: false, error: "empty response body" };
+        }
+
+        // 流式落盘：整图 Buffer + 同步 writeFileSync 会让大图占满主进程内存并阻塞事件循环。
+        await pipeline(
+          Readable.fromWeb(
+            resp.body as unknown as Parameters<typeof Readable.fromWeb>[0],
+          ),
+          fs.createWriteStream(res.filePath),
+        );
+        const bytes = fs.statSync(res.filePath).size;
         log.info("[NuwaxBridge] native:saveImage saved", {
           url,
+          resolved: target.toString(),
           path: res.filePath,
-          bytes: buf.length,
+          bytes,
         });
         return { success: true, path: res.filePath };
       } catch (error) {
