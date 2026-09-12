@@ -1,11 +1,11 @@
 const {_electron}=require(process.env.NUWAX_QA_PLAYWRIGHT || 'playwright-core');
-const {createServer}=require('node:http');const fs=require('node:fs/promises');const path=require('node:path');const assert=require('node:assert/strict');const {createHash}=require('node:crypto');
+const {createServer}=require('node:http');const fs=require('node:fs/promises');const path=require('node:path');const assert=require('node:assert/strict');const {createHash}=require('node:crypto');const {tmpdir}=require('node:os');
 const resources=process.env.NUWAX_QA_RESOURCES;
 const executable=process.env.NUWAX_QA_ELECTRON;
 if(!resources || !executable) throw Error('Set NUWAX_QA_RESOURCES and NUWAX_QA_ELECTRON');
 const payload=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6C1kAAAAASUVORK5CYII=','base64');
 (async()=>{
-const dir=await fs.mkdtemp('/tmp/nuwax-file-bridge-');const target=path.join(dir,'saved.png');
+const dir=await fs.mkdtemp(path.join(tmpdir(),'nuwax-file-bridge-'));const target=path.join(dir,'saved.png');
 let sameOriginAuthorization = null; let otherOriginAuthorization = null;
 const otherServer=createServer((req,res)=>{otherOriginAuthorization=req.headers.authorization||null;res.writeHead(200,{'content-type':'image/png'});res.end(payload);});
 await new Promise(r=>otherServer.listen(0,'127.0.0.1',r));
