@@ -79,7 +79,10 @@ describe("loopbackGateway runtime key carries backend", () => {
     mocks.sendSpy.mockClear();
     mocks.startGateway.mockReset().mockImplementation(async () => fakeHandle());
     // proxy 形态：gateway 模式 + dist 不可达（process.resourcesPath 指向空目录）
-    process.resourcesPath = "/nonexistent-resources";
+    Object.defineProperty(process, "resourcesPath", {
+      value: "/nonexistent-resources",
+      configurable: true,
+    });
   });
 
   it("ensure writes the runtime key with the resolved backend origin", async () => {

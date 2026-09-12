@@ -26,10 +26,10 @@ vi.mock("electron-log", () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
-const mockExistsSync = vi.fn(() => false);
+const mockExistsSync = vi.fn((_p: string) => false);
 const mockRenameSync = vi.fn();
 const mockCopyFileSync = vi.fn();
-const mockReadFileSync = vi.fn(() => "{}");
+const mockReadFileSync = vi.fn((_p: string) => "{}");
 const mockWriteFileSync = vi.fn();
 
 vi.mock("fs", () => ({
@@ -40,7 +40,7 @@ vi.mock("fs", () => ({
   writeFileSync: (p: string, data: string) => mockWriteFileSync(p, data),
 }));
 
-const mockReadSetting = vi.fn(() => null);
+const mockReadSetting = vi.fn((..._args: unknown[]): unknown => null);
 const mockWriteSetting = vi.fn();
 
 vi.mock("../db", () => ({
@@ -68,6 +68,20 @@ describe("commercial branding (overlay, identifier=nuwax)", () => {
     vi.clearAllMocks();
     mockDbPrepare.mockReturnValue({ get: () => ({ count: 0 }) });
   });
+
+  it.each([".nuwaclaw", ".nuwawork", ".nuwax-agent", ".nuwaxbot"])(
+    "never probes or imports legacy product %s",
+    async (legacy) => {
+      mockExistsSync.mockImplementation((p: string) => p.includes(legacy));
+      const { migrateDataDir } = await import("./migrate");
+      migrateDataDir();
+      expect(
+        mockExistsSync.mock.calls.some(([p]) => String(p).includes(legacy)),
+      ).toBe(false);
+      expect(mockRenameSync).not.toHaveBeenCalled();
+      expect(mockCopyFileSync).not.toHaveBeenCalled();
+    },
+  );
 
   it("derives APP_DATA_DIR_NAME from injected identifier", async () => {
     const { APP_DATA_DIR_NAME } = await import("@shared/constants");
@@ -126,5 +140,42 @@ describe("commercial branding (overlay, identifier=nuwax)", () => {
     expect(mockWriteSetting).toHaveBeenCalledWith("step1_config", {
       workspaceDir: path.join("/mock/home", ".nuwax", "workspace"),
     });
+  });
+
+  it("disables legacy guiMcpEnabled=true (experimental feature removed)", async () => {
+    mockReadSetting.mockReturnValue({ guiMcpEnabled: true });
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    migrateSettingsPaths();
+
+    expect(mockWriteSetting).toHaveBeenCalledWith("step1_config", {
+      guiMcpEnabled: false,
+    });
+  });
+
+  it("disables legacy sandbox_policy and preserves other fields", async () => {
+    mockReadSetting.mockImplementation((key: unknown) =>
+      key === "sandbox_policy"
+        ? { enabled: true, backend: "auto", mode: "strict" }
+        : null,
+    );
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    migrateSettingsPaths();
+
+    expect(mockWriteSetting).toHaveBeenCalledWith("sandbox_policy", {
+      enabled: false,
+      backend: "auto",
+      mode: "strict",
+    });
+  });
+
+  it("does not write when experimental flags already off/absent", async () => {
+    mockReadSetting.mockReturnValue({ guiMcpEnabled: false });
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    migrateSettingsPaths();
+
+    expect(mockWriteSetting).not.toHaveBeenCalled();
   });
 });

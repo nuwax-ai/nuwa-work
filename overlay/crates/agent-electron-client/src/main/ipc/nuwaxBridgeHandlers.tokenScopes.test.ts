@@ -26,9 +26,12 @@ let mainWindowSender: ((channel: string, payload: unknown) => void) | undefined;
 const mocks = vi.hoisted(() => ({
   showSaveDialog: vi.fn(),
   netFetch: vi.fn(),
+  stop: vi.fn(async () => ({ success: true, results: {} })),
+  storage: vi.fn(async () => undefined),
 }));
 
 vi.mock("electron", () => ({
+  app: { isPackaged: false },
   ipcMain: {
     handle: (
       channel: string,
@@ -45,6 +48,9 @@ vi.mock("electron", () => ({
   dialog: { showSaveDialog: mocks.showSaveDialog },
   net: { fetch: mocks.netFetch },
   BrowserWindow: class {},
+  webContents: {
+    getAllWebContents: () => [{ session: { clearStorageData: mocks.storage } }],
+  },
 }));
 
 vi.mock("electron-log", () => ({
@@ -77,7 +83,8 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("./processHandlers", () => ({
-  stopAllServicesNow: vi.fn(async () => undefined),
+  stopAllServicesNow: mocks.stop,
+  restartAllServicesNow: vi.fn(async () => ({ success: true })),
 }));
 
 import {
@@ -93,6 +100,8 @@ function senderEvent(origin: string): { senderFrame: { url: string } } {
 }
 
 beforeEach(() => {
+  mocks.stop.mockResolvedValue({ success: true, results: {} });
+  mocks.storage.mockClear();
   settings.clear();
   handlers.clear();
   emitters.clear();
@@ -107,6 +116,7 @@ beforeEach(() => {
   } as never);
   settings.set("step1_config", { serverHost: HOST_ORIGIN });
   settings.set("nuwax.loopback", { enabled: true, origin: GW_ORIGIN });
+  handlers.get("auth:getToken")!(senderEvent(GW_ORIGIN));
 });
 
 describe("token 键空间统一（网关形态）", () => {
@@ -168,7 +178,7 @@ describe("configureServerHost（企业登录切换域名）", () => {
     mainWindowSender = (c, p) => sent.push([c, p]);
 
     const res = (await handlers.get("auth:configureServerHost")!(
-      undefined,
+      senderEvent(GW_ORIGIN),
       "biz.example.com",
     )) as { success: boolean; serverHost?: string };
 
@@ -182,11 +192,11 @@ describe("configureServerHost（企业登录切换域名）", () => {
   it("非法输入 → 失败返回且不写配置", async () => {
     const before = settings.get("step1_config");
     const empty = (await handlers.get("auth:configureServerHost")!(
-      undefined,
+      senderEvent(GW_ORIGIN),
       "   ",
     )) as { success: boolean };
     const bad = (await handlers.get("auth:configureServerHost")!(
-      undefined,
+      senderEvent(GW_ORIGIN),
       "ht tp://bad domain",
     )) as { success: boolean };
     expect(empty.success).toBe(false);
@@ -199,7 +209,10 @@ describe("configureServerHost（企业登录切换域名）", () => {
     settings.set("auth.saved_key", "OLD-SK");
     settings.set("auth.config_key", "OLD-CK");
     settings.set("auth.username", "user1");
-    settings.set(`auth.saved_keys.${new URL(HOST_ORIGIN).hostname}_user1`, "OLD-SK1");
+    settings.set(
+      `auth.saved_keys.${new URL(HOST_ORIGIN).hostname}_user1`,
+      "OLD-SK1",
+    );
     settings.set(`${NUWAX_TOKEN_KEY_PREFIX}${GW_ORIGIN}`, "OLD-TOKEN-GW");
     settings.set(`${NUWAX_TOKEN_KEY_PREFIX}${HOST_ORIGIN}`, "OLD-TOKEN-HOST");
     // 旧域隧道地址（serviceManager 起 lanproxy 时读）
@@ -260,7 +273,7 @@ describe("native:saveImage（另存图片）", () => {
     expect(res.success).toBe(true);
     expect(mocks.netFetch).toHaveBeenCalledWith(
       `${GW_ORIGIN}/api/computer/static/photo.png`,
-      { method: "GET" },
+      expect.objectContaining({ method: "GET" }),
     );
     expect(fs.readFileSync(tmpFile)).toEqual(Buffer.from([1, 2, 3]));
   });
@@ -276,9 +289,12 @@ describe("native:saveImage（另存图片）", () => {
     )) as { success: boolean };
 
     expect(res.success).toBe(true);
-    expect(mocks.netFetch).toHaveBeenCalledWith(`${HOST_ORIGIN}/a/b.png`, {
-      method: "GET",
-    });
+    expect(mocks.netFetch).toHaveBeenCalledWith(
+      `${HOST_ORIGIN}/a/b.png`,
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
   });
 
   it("非 http(s) 协议 → 拒绝且不发起取图", async () => {
@@ -340,5 +356,30 @@ describe("语言同步（webview 多语言 → 壳）", () => {
     emit!(undefined, null);
 
     expect(sent.some(([c]) => c === "nuwax:lang-changed")).toBe(false);
+  });
+});
+
+describe("document session isolation", () => {
+  it("rejects token from a document invalidated by domain switch", async () => {
+    const result = (await handlers.get("auth:configureServerHost")!(
+      senderEvent(GW_ORIGIN),
+      "https://new.example.com",
+    )) as any;
+    expect(result.success).toBe(true);
+    expect(
+      await handlers.get("auth:persistToken")!(senderEvent(GW_ORIGIN), "OLD"),
+    ).toBe(false);
+    expect(
+      settings.get(`${NUWAX_TOKEN_KEY_PREFIX}https://new.example.com`),
+    ).toBeNull();
+  });
+  it("reports failed stop and does not change domain", async () => {
+    mocks.stop.mockResolvedValueOnce({ success: false, results: {} });
+    const result = (await handlers.get("auth:configureServerHost")!(
+      senderEvent(GW_ORIGIN),
+      "https://new.example.com",
+    )) as any;
+    expect(result.success).toBe(false);
+    expect((settings.get("step1_config") as any).serverHost).toBe(HOST_ORIGIN);
   });
 });

@@ -25,16 +25,22 @@
  * 桥前端：preload/webviewPerfBridge.ts（注入到所有 http/https webview guest）。
  * 注册入口：ipc/index.ts 的 registerAllHandlers。
  */
-import { ipcMain, dialog, net, BrowserWindow } from "electron";
+import { ipcMain, dialog, net, BrowserWindow, webContents } from "electron";
 import type { IpcMainInvokeEvent, OpenDialogOptions } from "electron";
 import * as fs from "fs";
 import * as path from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
+import { saveResponse } from "../services/system/saveResponse";
 import log from "electron-log";
 import type { HandlerContext } from "@shared/types/ipc";
 import { readSetting, writeSetting, getDb } from "../db";
-import { stopAllServicesNow } from "./processHandlers";
+import { stopAllServicesNow, restartAllServicesNow } from "./processHandlers";
+
+import {
+  initializeCommercialAuth,
+  currentAccessToken,
+  currentBusinessOrigin,
+  clearRegistration,
+} from "./commercialAuth";
 
 /** nuwax ACCESS_TOKEN 存储键前缀，按来源 origin 分域，避免污染 sandbox ticket。 */
 export const NUWAX_TOKEN_KEY_PREFIX = "nuwax.accessToken.";
@@ -113,6 +119,86 @@ export function nuwaxTokenScopes(senderScope: string): string[] {
 const shellWindows = new Set<BrowserWindow>();
 
 export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
+  let serviceState: { phase: string; error?: string } = { phase: "stopped" };
+  const lifecycle = initializeCommercialAuth(
+    async (signal) => {
+      const { checkAllDependencies } =
+        await import("../services/system/dependencies");
+      const deps = await checkAllDependencies();
+      signal.throwIfAborted();
+      if (deps.some((d) => d.status === "missing" || d.status === "error"))
+        throw new Error("Required dependencies unavailable");
+      const { startSandboxService } =
+        await import("../services/sandbox/serviceBootstrap");
+      await startSandboxService();
+      signal.throwIfAborted();
+      return restartAllServicesNow(signal);
+    },
+    stopAllServicesNow,
+    (phase, error) => {
+      serviceState = { phase, error };
+      log.info("[NuwaxBridge] Service state", serviceState);
+      ctx.getMainWindow()?.webContents.send("nuwax:serviceState", serviceState);
+    },
+    () => {
+      // 注册接口也能发现登录失效；不依赖页面恰好发起下一次业务请求。
+      authGeneration++;
+      cancelTransfers();
+      const scopes = nuwaxTokenScopes(currentBusinessOrigin());
+      for (const scope of scopes) writeSetting(tokenKey(scope), null);
+      clearShellAuthState();
+      clearRegistration();
+      ctx
+        .getMainWindow()
+        ?.webContents.send("nuwax:authChanged", { loggedIn: false });
+      void lifecycle
+        .stop()
+        .then(() => clearSiteStorage(scopes))
+        .then(() => {
+          ctx.getMainWindow()?.webContents.send("nuwax:serverHostChanged", {});
+        })
+        .catch((error) =>
+          log.error("[NuwaxBridge] Expiry cleanup failed", error),
+        );
+    },
+  );
+  ipcMain.handle("services:syncConfig", () => lifecycle.sync());
+  ipcMain.handle("services:authState", () => ({
+    ...serviceState,
+    loggedIn: !!currentAccessToken(),
+  }));
+  // 每个文档第一次 getToken 绑定会话代次。换域/登出后旧文档不能写回。
+  let authGeneration = 0;
+  let transfers = new AbortController();
+  const cancelTransfers = () => {
+    transfers.abort();
+    transfers = new AbortController();
+  };
+  let switching = false;
+  const documents = new Map<string, number>();
+  const documentKey = (event: IpcMainInvokeEvent) =>
+    `${event.sender?.id}:${event.senderFrame?.processId}:${event.senderFrame?.routingId}`;
+  const isCurrentDocument = (event: IpcMainInvokeEvent) =>
+    !switching && documents.get(documentKey(event)) === authGeneration;
+  const clearSiteStorage = async (scopes: string[]) => {
+    const sessions = new Set(
+      webContents.getAllWebContents().map((wc) => wc.session),
+    );
+    for (const ses of sessions)
+      for (const origin of scopes) {
+        if (/^https?:\/\//.test(origin))
+          await ses.clearStorageData({
+            origin,
+            storages: [
+              "cookies",
+              "localstorage",
+              "indexdb",
+              "serviceworkers",
+              "cachestorage",
+            ],
+          });
+      }
+  };
   // localFiles 仅保留宿主原生目录选择器：返回绝对路径，数据面由 nuwax 走
   // file-server（customTargetDir）HTTP 通道，主进程不做持久化与文件操作。
   // 注：当前 nuwax 前端已无调用方（「文件树选择非工作空间目录」需求回滚，
@@ -151,8 +237,7 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
       payload && typeof payload === "object"
         ? (payload as Record<string, unknown>)
         : null;
-    const lang =
-      safe && typeof safe.lang === "string" ? safe.lang.trim() : "";
+    const lang = safe && typeof safe.lang === "string" ? safe.lang.trim() : "";
     if (!lang) return;
     log.info("[NuwaxBridge] lang-sync", { lang });
     ctx.getMainWindow()?.webContents.send("nuwax:lang-changed", { lang });
@@ -180,6 +265,24 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
 
   // ---- auth：ACCESS_TOKEN 双向同步 ----
   ipcMain.handle("auth:getToken", (event) => {
+    if (switching) return null;
+    const scopeOrigin = resolveSenderOrigin(event);
+    const loopbackOrigin = (
+      readSetting("nuwax.loopback") as { origin?: string } | null
+    )?.origin;
+    const overrideOrigin = (
+      readSetting("nuwax.webviewOverride") as { origin?: string } | null
+    )?.origin;
+    if (
+      ![currentBusinessOrigin(), loopbackOrigin, overrideOrigin].includes(
+        scopeOrigin,
+      )
+    )
+      return null;
+    const key = documentKey(event);
+    if (documents.has(key) && documents.get(key) !== authGeneration)
+      return null;
+    documents.set(key, authGeneration);
     const scope = resolveSenderOrigin(event);
     // 跨 origin 回退链（nuwaxTokenScopes 统一视图）：direct↔gateway 切换后
     // sender 键为空时依次回退其余候选键，命中即回写——双向切换免重登。
@@ -210,6 +313,7 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     // （persistToken 只在 /Login 登录成功时触发，覆盖不了「启动即未登录」场景，故在此补全。）
     ctx.getMainWindow()?.webContents.send("nuwax:authChanged", { loggedIn });
     if (loggedIn) {
+      void lifecycle.start();
       log.info(
         "[NuwaxBridge] getToken → sync header loggedIn:true (relogin-free)",
       );
@@ -222,6 +326,8 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   });
 
   ipcMain.handle("auth:persistToken", (event, token: unknown) => {
+    if (!isCurrentDocument(event)) return false;
+    const previous = currentAccessToken();
     const scope = resolveSenderOrigin(event);
     if (typeof token !== "string" || !token) return false;
     // 双写全部候选键（sender + serverHost + 网关）：网关 Bearer 代注源读
@@ -237,8 +343,18 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     // 场景；此前「服务在跑即跳过」导致登录后注册态永不同步（壳侧无 reg，服务端
     // 遗留旧条目）。无 savedKey（全新客户端首登）时 syncConfigToServer 自然跳过，
     // 仅重启本地服务——首次注册待 Phase 3 后端 reg 支持 token 鉴权后补齐。
-    ctx.getMainWindow()?.webContents.send("nuwax:login-confirmed", {});
-    log.info("[NuwaxBridge] login → renderer login-confirmed (reg+sync+restart)");
+    if (previous && previous !== token) {
+      authGeneration++;
+      documents.set(documentKey(event), authGeneration);
+      cancelTransfers();
+      void lifecycle.stop().then(() => lifecycle.start());
+      clearRegistration();
+    } else {
+      void lifecycle.start();
+    }
+    log.info(
+      "[NuwaxBridge] login → renderer login-confirmed (reg+sync+restart)",
+    );
 
     // 顶栏账号状态联动：登录成功 → 通知 renderer 顶栏切「已登录」态（跟随 nuwax token，
     // 而非 nuwaclaw 原生 configKey）。Phase 3 configKey 退役前，顶栏以此事件为准。
@@ -249,6 +365,10 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   });
 
   ipcMain.handle("auth:clear", async (event) => {
+    if (!isCurrentDocument(event)) return false;
+    authGeneration++;
+    cancelTransfers();
+    const stopping = lifecycle.stop();
     const scope = resolveSenderOrigin(event);
     // 全清候选键：单清 sender 键时，getToken 回退链会从 serverHost/网关键把
     // 过期 token「复活」——登出/401 后陷入 复活→401→clear 死循环（键空间分裂修复）。
@@ -260,20 +380,20 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
     // 响应的派生缓存，供 lanproxy clientKey；全清避免残留导致「伪已登录」与跨账号串用）。
     clearShellAuthState();
 
-    // 登出 / token 失效（401）联动：停止全部本地服务。
-    // 用户定：登出与失效都停服务。await 以确保重定向回 /Login 前服务确停；
-    // stopAllServicesNow 内部对各进程有超时，整体有界，失败仅 warn 不影响 clear 结果。
-    try {
-      await stopAllServicesNow();
-    } catch (e) {
-      log.warn("[NuwaxBridge] logout/expiry service stop failed (ignored):", e);
-    }
+    clearRegistration();
+    ctx
+      .getMainWindow()
+      ?.webContents.send("nuwax:authChanged", { loggedIn: false });
+    await clearSiteStorage(scopes);
+    const stopped = await stopping;
+    // 重新挂载 guest，丢弃旧文档和内存认证状态；登录页可建立新文档会话。
+    ctx.getMainWindow()?.webContents.send("nuwax:serverHostChanged", {});
 
     // 顶栏账号状态联动：登出 / token 失效 → 通知 renderer 顶栏切「去登录」态。
     ctx.getMainWindow()?.webContents.send("nuwax:authChanged", {
       loggedIn: false,
     });
-    return true;
+    return stopped.success;
   });
 
   // ---- auth：企业登录（切换后端域名，客户端重新初始化） ----
@@ -283,7 +403,10 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   // 反代目标随域重指），并通知 renderer 重解析 webview URL（direct 形态即加载
   // 新域名的 /Login）。切换后 webview 在新域无 token → 登录页；登录成功经
   // persistToken → nuwax:login-confirmed → reg+重启服务，完成向新域的重新初始化。
-  ipcMain.handle("auth:configureServerHost", async (event, input: unknown) => {
+  const configureServerHost = async (
+    event: IpcMainInvokeEvent,
+    input: unknown,
+  ) => {
     const raw =
       typeof input === "string" ? input.trim().replace(/\/+$/, "") : "";
     if (!raw) return { success: false, error: "empty domain" };
@@ -301,55 +424,55 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
       return { success: false, error: "invalid domain" };
     }
 
-    // 旧域 token 候选键快照：nuwaxTokenScopes 读 step1_config 当前值，写入新
-    // serverHost 之后就再也推导不出旧域的键了（旧 token 会变成清不掉的孤儿）。
-    const staleScopes = nuwaxTokenScopes(resolveSenderOrigin(event));
-
-    const prev = readSetting("step1_config") as Record<
+    if (
+      !isCurrentDocument(event) &&
+      event.sender !== ctx.getMainWindow()?.webContents
+    )
+      return { success: false, error: "Stale document" };
+    switching = true;
+    authGeneration++;
+    cancelTransfers();
+    const scopes = nuwaxTokenScopes(resolveSenderOrigin(event));
+    const stopping = lifecycle.stop();
+    clearShellAuthState();
+    clearRegistration();
+    for (const scope of scopes) writeSetting(tokenKey(scope), null);
+    // 新域历史凭据一并清理，回切也必须重新登录。
+    writeSetting(tokenKey(origin), null);
+    ctx
+      .getMainWindow()
+      ?.webContents.send("nuwax:authChanged", { loggedIn: false });
+    const previousConfig = readSetting("step1_config") as Record<
       string,
       unknown
     > | null;
-    const prevServerHost = (prev?.serverHost as string) ?? null;
-    writeSetting("step1_config", { ...(prev ?? {}), serverHost: origin });
-    log.info("[NuwaxBridge] configureServerHost", {
-      from: prevServerHost,
-      to: origin,
-    });
-
-    // 清旧域派生凭据，否则「重新初始化」只在 token 层生效：
-    // - savedKey/configKey 是 reg 响应缓存（lanproxy clientKey 来源），残留会让
-    //   Start All 门禁（!!configKey）继续敞开，且 lanproxy 拿旧域 savedKey 往旧域建隧道；
-    // - lanproxy.server_host/port 是 reg 回写的隧道地址（serviceManager 起 lanproxy 时读），
-    //   残留会把隧道指向旧域。清空后由新域登录的 reg 重新写回。
-    // webview 自己的 localStorage.ACCESS_TOKEN 无需处理：新域是另一个 origin，
-    // 其 localStorage 天然隔离。
-    clearShellAuthState();
-    for (const scope of staleScopes) writeSetting(tokenKey(scope), null);
-    writeSetting("lanproxy.server_host", null);
-    writeSetting("lanproxy.server_port", null);
-
-    // 停服 → 网关重指 按序串行并 await：确保 webview 重载新域前旧域 lanproxy 确已停止、
-    // 网关反代目标确已重指（与 auth:clear 的 await 口径一致）。两者内部对各进程均有
-    // 超时，整体有界；失败只 warn，不影响域名已写入的结果。
     try {
-      await stopAllServicesNow();
-    } catch (e) {
-      log.warn("[NuwaxBridge] domain switch stop services failed (ignored):", e);
-    }
-    try {
-      const { refreshLoopbackGateway } = await import(
-        "../services/loopbackGateway"
-      );
+      const result = await stopping;
+      if (!result.success) throw new Error("Failed to stop business services");
+      await clearSiteStorage([...scopes, origin]);
+      const prev = readSetting("step1_config") as Record<
+        string,
+        unknown
+      > | null;
+      writeSetting("step1_config", { ...prev, serverHost: origin });
+      const { refreshLoopbackGateway } =
+        await import("../services/loopbackGateway");
       await refreshLoopbackGateway();
-    } catch (e) {
-      log.warn("[NuwaxBridge] domain switch gateway refresh failed (ignored):", e);
+      ctx
+        .getMainWindow()
+        ?.webContents.send("nuwax:serverHostChanged", { serverHost: origin });
+      return { success: true, serverHost: origin };
+    } catch (error) {
+      // 同文档允许再次操作重试，但旧 token 仍不可写回（需重新 getToken）。
+      writeSetting("step1_config", previousConfig);
+      ctx.getMainWindow()?.webContents.send("nuwax:serverHostChanged", {});
+      return { success: false, error: String(error) };
+    } finally {
+      switching = false;
     }
-
-    ctx
-      .getMainWindow()
-      ?.webContents.send("nuwax:serverHostChanged", { serverHost: origin });
-    return { success: true, serverHost: origin };
-  });
+  };
+  ipcMain.handle("auth:configureServerHost", configureServerHost);
+  ipcMain.handle("services:configureServerHost", configureServerHost);
 
   // ---- native：新开独立窗口打开 nuwax 页面 ----
   // 智能体详情/工作流/网页应用开发/我的电脑等全屏页在主窗口会被沉浸式工具栏遮挡
@@ -428,6 +551,8 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
   ipcMain.handle(
     "native:saveImage",
     async (event, opts: { url: string; filename?: string }) => {
+      const generation = authGeneration;
+      const transferSignal = transfers.signal;
       try {
         const { url, filename } = opts || {};
         if (typeof url !== "string" || !url) {
@@ -474,27 +599,39 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
           return { success: false, canceled: true };
         }
 
-        // net.fetch 走 defaultSession（与 webview 同会话）。鉴权不依赖 cookie：
-        // 地址指向回环网关时，网关对云端方向代注 Bearer（见 gateway.ts 的 buildProxyHeaders）。
-        const resp = await net.fetch(target.toString(), { method: "GET" });
-        if (!resp.ok) {
-          return { success: false, error: `http ${resp.status}` };
+        const signal = AbortSignal.any([
+          transferSignal,
+          AbortSignal.timeout(120_000),
+        ]);
+        let destination = target;
+        let resp: Response | undefined;
+        for (let redirects = 0; redirects <= 5; redirects++) {
+          if (generation !== authGeneration || switching)
+            throw new Error("Session changed");
+          const token =
+            destination.origin === currentBusinessOrigin()
+              ? currentAccessToken()
+              : null;
+          resp = await net.fetch(destination.toString(), {
+            method: "GET",
+            redirect: "manual",
+            signal,
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (![301, 302, 303, 307, 308].includes(resp.status)) break;
+          const location = resp.headers.get("location");
+          await resp.body?.cancel();
+          if (!location || redirects === 5)
+            throw new Error("Invalid image redirect");
+          destination = new URL(location, destination);
+          if (!/^https?:$/.test(destination.protocol))
+            throw new Error("Unsupported redirect protocol");
         }
-        if (!resp.body) {
-          return { success: false, error: "empty response body" };
-        }
-
-        // 流式落盘：整图 Buffer + 同步 writeFileSync 会让大图占满主进程内存并阻塞事件循环。
-        await pipeline(
-          Readable.fromWeb(
-            resp.body as unknown as Parameters<typeof Readable.fromWeb>[0],
-          ),
-          fs.createWriteStream(res.filePath),
-        );
+        if (generation !== authGeneration || switching)
+          throw new Error("Session changed");
+        await saveResponse(resp!, res.filePath, signal);
         const bytes = fs.statSync(res.filePath).size;
         log.info("[NuwaxBridge] native:saveImage saved", {
-          url,
-          resolved: target.toString(),
           path: res.filePath,
           bytes,
         });

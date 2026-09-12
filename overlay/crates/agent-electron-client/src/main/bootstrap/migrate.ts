@@ -130,6 +130,8 @@ function renameDbFiles(oldDb: string, newDb: string): void {
 }
 
 export function migrateDataDir(): void {
+  // 商业版全新开始：不探测、不导入任何历史产品目录。
+  if (APP_NAME_IDENTIFIER === "nuwax") return;
   const home = app.getPath("home");
   const newDir = path.join(home, `.${APP_NAME_IDENTIFIER}`);
   const newDbName = `${APP_NAME_IDENTIFIER}.db`;
@@ -225,7 +227,48 @@ function importLegacyDb(home: string, newDb: string): void {
  * 当用户手动选择的工作空间目录包含旧数据目录前缀时，替换为新前缀。
  * 必须在 initDatabase() 之后调用。
  */
+/**
+ * 商业版（v1.0.4 起）移除实验功能：Sandbox / GUI MCP（设置页入口已随
+ * overlay SettingsPage 删除）。历史版本（v1.0.0–v1.0.3）若用户开启过，
+ * 状态会残留在 DB 且删除 UI 后无从关闭——此处每次启动兜底强制归位关闭。
+ * 幂等：仅在发现开启时改写。mcp_local_config 的 gui-agent 残留条目无需
+ * 此处处理：flag 归 false 后，guiServerHandlers 注册时的
+ * syncGuiAgentLocalMcpConfig(getGuiMcpEnabled()) 会自动移除。
+ */
+function disableLegacyExperimentalFeatures(): void {
+  try {
+    const step1Config = readSetting("step1_config") as {
+      guiMcpEnabled?: boolean;
+    } | null;
+    if (step1Config?.guiMcpEnabled === true) {
+      writeSetting("step1_config", { ...step1Config, guiMcpEnabled: false });
+      log.info(
+        "[Migrate] Disabled legacy guiMcpEnabled (experimental feature removed)",
+      );
+    }
+  } catch (e) {
+    log.warn("[Migrate] Failed to reset guiMcpEnabled:", e);
+  }
+  try {
+    const sandboxPolicy = readSetting("sandbox_policy") as {
+      enabled?: boolean;
+    } | null;
+    if (sandboxPolicy?.enabled === true) {
+      writeSetting("sandbox_policy", { ...sandboxPolicy, enabled: false });
+      log.info(
+        "[Migrate] Disabled legacy sandbox policy (experimental feature removed)",
+      );
+    }
+  } catch (e) {
+    log.warn("[Migrate] Failed to reset sandbox policy:", e);
+  }
+}
+
 export function migrateSettingsPaths(): void {
+  // 先于 workspaceDir 修补执行：sandbox_policy 独立于 step1_config，
+  // 不能被下方「step1Config 为空即 return」挡住
+  disableLegacyExperimentalFeatures();
+
   const home = app.getPath("home");
   const newPrefix = path.join(home, `.${APP_NAME_IDENTIFIER}`);
   const LEGACY_DIR_NAMES = [
