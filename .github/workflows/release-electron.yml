@@ -126,8 +126,8 @@ jobs:
 
       # 显式 submodule init（不依赖 checkout action 内部递归 sync）：
       # nuwa-electron-shell submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支（公开，
-      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，pin/nuwawork
-      #   分支承载；基座已不含内嵌 nuwax——前端 dist 打包来源=壳根 nuwax/dist）
+      #   github.token 注入凭据）；nuwax → 壳根前端 pin（公开可匿名拉取，gitlink 须在
+      #   feat-dong.0930 上可达；基座已不含内嵌 nuwax——前端 dist 打包来源=壳根 nuwax/dist）
       - name: Init submodules (nuwa-electron-shell + nuwax)
         shell: bash
         env:

@@ -8,11 +8,11 @@ nuwax-client/（main = 商业产品壳）
 ├── nuwa-electron-shell/   # submodule → 基座仓 nuwax-ai/nuwa-electron-shell 的 main 分支
 │               #   （产品中立功能模块：agent-electron-client + agent-kit + gui-server）
 ├── nuwax/                 # submodule → nuwax 前端（feat-dong.0930，dist 随仓提交；
-│               #   商业前端 pin，pin/nuwawork 分支承载——基座瘦身后 dist 唯一来源；
+│               #   商业前端 pin 沿该分支前移——基座瘦身后 dist 唯一来源；
 │               #   与线上 PC web 同源同仓，术语区分见下节）
 ├── overlay/               # 商业自有代码（整文件覆写进基座工作树，见下「overlay/」）
-├── scripts/               # in-base.js（基座内执行+商业 env 注入）+ sync-overlay.js
-├── .github/workflows/     # 发布编排（release / sync，构建在基座内执行）
+├── scripts/               # in-base.js（基座内执行+商业 env 注入）+ sync-overlay.js + check-base-purity.js
+├── .github/workflows/     # 发布编排（release / sync）+ 测试门禁（ci.yml 双轨）
 ├── release-notes/  docs/
 └── package.json
 
@@ -99,8 +99,10 @@ Windows 沙箱 helper（基座内唯一 Rust 工程 windows-sandbox-helper）由
 - **社区版**：社区产品壳（默认身份、通道 nuwaclaw-electron）与商业版同源基座、
   各自独立发布，互不影响；社区仓 bump pin 跨基座 `f68964eb`（基座删除内嵌前端）时
   需先补齐自身前端 pin 与 CI 断言，属独立工程。
-- **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 后，须同步快进 nuwax 仓的
-  `pin/nuwawork` 分支到同一提交（CI 匿名拉取依赖它；基座瘦身后仅剩壳根一处）。
+- **壳根 nuwax pin 维护**：bump 本仓 `nuwax/` gitlink 时，提交须在 `.gitmodules`
+  声明的 `feat-dong.0930` 分支上可达（release/smoke 的 submodule 拉取依赖可达性；
+  实证：v1.0.3 的 gitlink `205adce0` 不在 pin/nuwawork 上仍构建成功）。前端仓的
+  `pin/nuwawork` / `pin/nuwa-work` 为改名遗留分支，非硬依赖，勿凭直觉快进它们。
 
 ## 发版流程
 

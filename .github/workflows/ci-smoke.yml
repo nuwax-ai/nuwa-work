@@ -4,8 +4,8 @@
 # nuwax-ai/nuwa-electron-shell main 分支，走 github.token）+ nuwax（公开仓）。
 # 与 release workflow 的 Init submodules 步骤同构，在不动发布 tag 的情况下即可
 # 回归验证以下变更：
-#   - .gitmodules URL 变更 / pin bump
-#   - nuwax pin 提交在 pin/nuwawork 分支的可达性
+#   - .gitmodules URL 变更 / pin bump（gitlink 须在 .gitmodules 声明分支上可达，
+#     当前 nuwax=feat-dong.0930；pin/nuwawork 等为前端仓改名遗留，非硬依赖）
 name: CI Smoke (submodules)
 
 on:
