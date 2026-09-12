@@ -629,7 +629,7 @@ export function registerNuwaxBridgeHandlers(ctx: HandlerContext): void {
         }
         if (generation !== authGeneration || switching)
           throw new Error("Session changed");
-        await saveResponse(resp!, res.filePath, signal);
+        await saveResponse(resp!, res.filePath, signal, "binary");
         const bytes = fs.statSync(res.filePath).size;
         log.info("[NuwaxBridge] native:saveImage saved", {
           path: res.filePath,
