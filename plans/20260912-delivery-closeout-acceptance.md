@@ -149,3 +149,44 @@ mac 为 adhoc/未签名，Windows 未签名。测试机若开启 Gatekeeper/Smar
 - 商业/社区测试日志、tsc 日志、安装与启动截图：本机 `/tmp/nuwax-full-now.log`、`/tmp/nuwax-community-now.log`、`/tmp/nuwax-tsc-now.log`、`/tmp/nuwa-base-head-tsc.log`（HEAD 基线）、`/tmp/nuwa-win-runtime.png`
 - macOS 交付目录：`~/Documents/Nuwax-delivery/20260912/`
 - Windows 交付目录：`win-pc:C:\Users\soddygo\Nuwax-delivery\20260912\windows\`（含 `.blockmap`、`latest.yml`）
+
+---
+
+## 追加轮（2026-09-12 晚，用户实测反馈驱动的四项修复 + 一项重大发现）
+
+本轮全部经 PR 进基座 main（单主干，merge commit 不 rebase）+ 外层 overlay 直提；双平台包已按最终提交重建。
+
+### 修复清单
+
+| # | 项 | 内容 | 落点 |
+|---|---|---|---|
+| 1 | 启动屏图标居中 | flex 整组居中把图标顶到中心上方（实测 dy=-45px）→ 图标绝对定位钉全窗口正中，Spin/文案/重试收进 `.app-loading-body` 置于图标下方；打包版复测 dy=1px | 基座 PR #7 |
+| 2 | 最少展示时长 | `MIN_SPLASH_MS` 800→**3000**（用户拍板暂定值，仅改常量）；测试改引用常量；打包版实测可见 ~2.9s（150ms 轮询误差） | 基座 PR #7 |
+| 3 | 启动动画形态 | 移除图标下方 Spin 转圈，改**图标自身呼吸缩放**（scale 1↔1.08、1.6s 循环；失败态静态不动画）；打包版复测：Spin 节点 0、动画名 `app-loading-breathe`、缩放中中心点不移 | 基座 PR #8 |
+| 4 | 升级注册阻断 | 盐变更迁移曾把 `auth.saved_key` 一并清掉，而后端 reg 必须携带 savedKey → **1.0.3 存量用户升级后永远无法重新注册**（本机真机复现：清空后 4000，从备份种回即恢复且「旧 savedKey+新 deviceId」被后端接受）。修复=迁移时保留 savedKey，其余注册派生凭据照清 | 外层 overlay `075338ce` |
+| 5 | **renderer 品牌身份（重大）** | `constants.ts` 的 `typeof process` 守卫在渲染进程运行时恒走 undefined 分支，**丢弃 vite define 注入的品牌字面量——商业版渲染层身份自 v1.0.0 起一直是社区缺省 nuwaclaw/端口 0**（主进程/preload 正确；此前靠社区版 AutoReconnect 与商业主进程桥的意外拼合兜底，真机日志实证）。修复=去守卫直读 env | 基座 PR #9 `801c1aa6` |
+
+另修 CI flaky：`gateway.test.ts` x-client-type 用例 ubuntu 上两次 `UND_ERR_SOCKET` → 用例 fetch 改 `connection: close` + 瞬断重试一次（外层 `baa93abd`）。
+
+### 修复 #5 的真机验证（商业主链首次按设计端到端跑通）
+
+修复后打包版（真实登录态）：**renderer AutoReconnect 0 次**（按设计禁用），主进程生命周期 `getToken → registering → starting → ready` 约 9 秒闭环，fileServer/lanproxy/ttyd/ComputerServer 全部 running，webview 停在已登录 home。修复前同机日志显示走的是社区 AutoReconnect 拼合链。
+
+### 最终提交映射（替代正文旧映射）
+
+| 仓库 | 分支 | 提交 | 含 |
+|---|---|---|---|
+| 基座 | main | `801c1aa6`（merge PR #9） | 1.0.4 全部基座改动 + 居中/3s（#7）+ 呼吸（#8）+ 身份修复（#9） |
+| 外层 | main | `9b23e7af` | overlay（含 savedKey 保留 `075338ce`、flaky 修复 `baa93abd`）+ pin `801c1aa6` |
+
+### 最终交付物（覆盖正文 §3 旧哈希）
+
+| 平台 | 文件 | SHA256 |
+|---|---|---|
+| macOS arm64 | `~/Documents/Nuwax-delivery/20260912/Nuwax-1.0.4-qa.20260912-arm64-unsigned.app.zip` | `84179a15b7dbec9164782742e79684ba4432e9bca5761d980625e569928f8d7c`（app.asar `e7bb999d…`） |
+| Windows x64 | `win-pc:…\windows\Nuwax-Setup-1.0.4-qa.20260912-unsigned.exe` | 见仓库随附更新（同源构建） |
+
+### 事件记录（对测试人员的影响说明）
+
+- 本机 `~/.nuwax` 曾在 1.0.4 包冒烟中被盐迁移清掉 savedKey（修复 #4 之前的行为），已从 `nuwax.db.bak-20260911-150813` 备份种回并验证自愈；修复后不再发生。
+- §5.3 的悬念就此收口：后端接受「旧 savedKey + 新 deviceId」重注册；存量升级路径 = 迁移保留 savedKey → reg 成功 → 服务起（真机实证）。
