@@ -389,6 +389,11 @@ export function loopbackGatewayStatus(): {
  * 登录成功等场景（direct→direct 域名未变）不应触发。
  */
 export async function refreshLoopbackGateway(): Promise<void> {
+  // env 调试旋钮接线：每次 refresh（启动 + 配置变更）把 NUWAX_WEBVIEW_ORIGIN
+  // 同步进运行时键（renderer 关 nodeIntegration 读不到 env，经键传递）。
+  // 未设置写 {origin:null}——env 是权威源，顺带清掉手动种的残留 override。
+  // 此前 syncWebviewOverrideFromEnv 无任何调用方，旋钮自 f68964eb 起失效。
+  syncWebviewOverrideFromEnv();
   const before = JSON.stringify(readSetting(LOOPBACK_RUNTIME_KEY) ?? null);
   await stopLoopbackGateway();
   await ensureLoopbackGateway();

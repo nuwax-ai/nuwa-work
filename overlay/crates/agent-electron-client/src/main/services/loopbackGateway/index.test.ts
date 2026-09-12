@@ -104,6 +104,30 @@ describe("loopbackGateway runtime key carries backend", () => {
     });
   });
 
+  it("syncs NUWAX_WEBVIEW_ORIGIN env into the runtime override key on refresh", async () => {
+    mocks.store.set("step1_config", {
+      nuwaxLoadMode: "gateway",
+      serverHost: "https://a.example.com",
+    });
+    process.env.NUWAX_WEBVIEW_ORIGIN = "http://localhost:3000";
+    try {
+      const mod = await importFresh();
+      await mod.refreshLoopbackGateway();
+      expect(mocks.store.get("nuwax.webviewOverride")).toEqual({
+        origin: "http://localhost:3000",
+      });
+
+      // env 是权威源：未设置时清键（含剥手动种的残留值）
+      delete process.env.NUWAX_WEBVIEW_ORIGIN;
+      await mod.refreshLoopbackGateway();
+      expect(mocks.store.get("nuwax.webviewOverride")).toEqual({
+        origin: null,
+      });
+    } finally {
+      delete process.env.NUWAX_WEBVIEW_ORIGIN;
+    }
+  });
+
   it("notifies the renderer when only the domain changed (backend differs)", async () => {
     mocks.store.set("step1_config", {
       nuwaxLoadMode: "gateway",
