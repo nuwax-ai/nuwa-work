@@ -264,10 +264,40 @@ function disableLegacyExperimentalFeatures(): void {
   }
 }
 
+/**
+ * 商业版默认工作空间目录：step1_config.workspaceDir 未配置时，在用户目录
+ * 创建 Nuwax 并落为默认值——空值时 serviceManager 兜底的是隐藏目录
+ * ~/.nuwax/workspace，用户在 Finder/资源管理器不可见。幂等：已配置
+ * （用户自选目录、或旧前缀修补后的值）不覆盖；建目录失败不落值，维持空值兜底。
+ */
+function ensureDefaultWorkspaceDir(): void {
+  if (APP_NAME_IDENTIFIER !== "nuwax") return;
+  const current = readSetting("step1_config") as {
+    workspaceDir?: unknown;
+  } | null;
+  if (
+    typeof current?.workspaceDir === "string" &&
+    current.workspaceDir.trim()
+  ) {
+    return;
+  }
+  const dir = path.join(app.getPath("home"), "Nuwax");
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    log.warn("[Migrate] Failed to create default workspace dir:", e);
+    return;
+  }
+  writeSetting("step1_config", { ...(current ?? {}), workspaceDir: dir });
+  log.info(`[Migrate] Default workspace dir ensured: ${dir}`);
+}
+
 export function migrateSettingsPaths(): void {
   // 先于 workspaceDir 修补执行：sandbox_policy 独立于 step1_config，
   // 不能被下方「step1Config 为空即 return」挡住
   disableLegacyExperimentalFeatures();
+  // 同理：默认工作空间目录的落值须发生在空值早退之前
+  ensureDefaultWorkspaceDir();
 
   const home = app.getPath("home");
   const newPrefix = path.join(home, `.${APP_NAME_IDENTIFIER}`);

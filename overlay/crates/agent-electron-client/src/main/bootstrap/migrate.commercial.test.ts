@@ -9,6 +9,8 @@
  * 3. 新目录已存在且 DB 为空时也不从旧目录导入
  * 4. 目标已有数据 → 跳过
  * 5. migrateSettingsPaths 重写 step1_config.workspaceDir 的 .nuwaclaw 前缀（保留基座行为）
+ * 6. 默认工作空间目录：未配置时创建 ~/Nuwax 并落 step1_config.workspaceDir
+ *    （已配置不覆盖；建目录失败不落值）
  */
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
@@ -31,6 +33,7 @@ const mockRenameSync = vi.fn();
 const mockCopyFileSync = vi.fn();
 const mockReadFileSync = vi.fn((_p: string) => "{}");
 const mockWriteFileSync = vi.fn();
+const mockMkdirSync = vi.fn();
 
 vi.mock("fs", () => ({
   existsSync: (p: string) => mockExistsSync(p),
@@ -38,6 +41,7 @@ vi.mock("fs", () => ({
   copyFileSync: (o: string, n: string) => mockCopyFileSync(o, n),
   readFileSync: (p: string) => mockReadFileSync(p),
   writeFileSync: (p: string, data: string) => mockWriteFileSync(p, data),
+  mkdirSync: (p: string, opts?: unknown) => mockMkdirSync(p, opts),
 }));
 
 const mockReadSetting = vi.fn((..._args: unknown[]): unknown => null);
@@ -142,6 +146,46 @@ describe("commercial branding (overlay, identifier=nuwax)", () => {
     });
   });
 
+  it("creates ~/Nuwax as default workspace dir when unset (fresh install)", async () => {
+    mockReadSetting.mockReturnValue(null);
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    migrateSettingsPaths();
+
+    expect(mockMkdirSync).toHaveBeenCalledWith(
+      path.join("/mock/home", "Nuwax"),
+      { recursive: true },
+    );
+    expect(mockWriteSetting).toHaveBeenCalledWith("step1_config", {
+      workspaceDir: path.join("/mock/home", "Nuwax"),
+    });
+  });
+
+  it("keeps user-configured workspaceDir (no default mkdir/overwrite)", async () => {
+    mockReadSetting.mockReturnValue({
+      workspaceDir: "/Users/x/my-projects",
+      serverHost: "https://testagent.xspaceagi.com",
+    });
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    migrateSettingsPaths();
+
+    expect(mockMkdirSync).not.toHaveBeenCalled();
+    expect(mockWriteSetting).not.toHaveBeenCalled();
+  });
+
+  it("does not persist default when workspace dir creation fails", async () => {
+    mockReadSetting.mockReturnValue({ serverHost: "https://t.example" });
+    mockMkdirSync.mockImplementationOnce(() => {
+      throw new Error("EACCES");
+    });
+
+    const { migrateSettingsPaths } = await import("./migrate");
+    expect(() => migrateSettingsPaths()).not.toThrow();
+
+    expect(mockWriteSetting).not.toHaveBeenCalled();
+  });
+
   it("disables legacy guiMcpEnabled=true (experimental feature removed)", async () => {
     mockReadSetting.mockReturnValue({ guiMcpEnabled: true });
 
@@ -171,7 +215,11 @@ describe("commercial branding (overlay, identifier=nuwax)", () => {
   });
 
   it("does not write when experimental flags already off/absent", async () => {
-    mockReadSetting.mockReturnValue({ guiMcpEnabled: false });
+    // workspaceDir 已配置：排除默认工作空间目录落值的干扰，本用例只测 flags 静默
+    mockReadSetting.mockReturnValue({
+      guiMcpEnabled: false,
+      workspaceDir: "/Users/x/wsp",
+    });
 
     const { migrateSettingsPaths } = await import("./migrate");
     migrateSettingsPaths();
