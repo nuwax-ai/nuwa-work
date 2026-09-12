@@ -174,6 +174,21 @@ describe("loopback gateway（透明反代）", () => {
   });
 
   it("x-client-type：缺省随产品标识 APP_NAME_IDENTIFIER，空串关闭", async () => {
+    // ubuntu CI 两次在无 body 的 204 往返中出现 UND_ERR_SOCKET（响应读到一半
+    // socket 被毁，34676294850 / 34678353803）。归因：fetch 默认 keep-alive 池化
+    // 与刚 listen 完成的新网关在慢 runner 上的拆除竞态。处置：本用例请求显式
+    // connection: close（响应头断言不受影响——该头本就是 hop-by-hop），并对
+    // 网络瞬断重试一次；确定性回归不受重试掩护。
+    const fetchNoKeepAlive = async (url: string) => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await fetch(url, { headers: { connection: "close" } });
+        } catch (e) {
+          if (attempt === 0 && (e as Error)?.name === "TypeError") continue;
+          throw e;
+        }
+      }
+    };
     const up = await startUpstream((req, res, cap) => {
       cap.xct = req.headers["x-client-type"];
       res.writeHead(204).end();
@@ -183,7 +198,7 @@ describe("loopback gateway（透明反代）", () => {
       getAccessToken: () => null,
     });
     gateways.push(gw1);
-    await fetch(`${gw1.origin}/a`);
+    await fetchNoKeepAlive(`${gw1.origin}/a`);
     // 测试环境未注入 NUWAX_APP_IDENTIFIER → 社区版缺省 nuwaclaw；
     // 商业版构建（identifier=nuwax）时该头值随 define 联动，无需改本测试
     expect(up.captured.xct).toBe(APP_NAME_IDENTIFIER);
@@ -194,7 +209,7 @@ describe("loopback gateway（透明反代）", () => {
       clientTypeHeader: "",
     });
     gateways.push(gw2);
-    await fetch(`${gw2.origin}/b`);
+    await fetchNoKeepAlive(`${gw2.origin}/b`);
     expect(up.captured.xct).toBeUndefined();
   });
 
